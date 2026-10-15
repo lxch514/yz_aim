@@ -1,0 +1,12 @@
+# version=1.1.0-minimal build=Oct 15 2026 10:44:10 command=extend nominal_rpm=30 requested_ms=650 zero_a=0 zero_b=0 node_a=1 node_b=2 sign_a=-1 hard_limit_output_deg=0.5 max_trim_rpm=5
+elapsed_ms,event,node_a,node_b,target_a_rpm,target_b_rpm,actual_a_rpm,actual_b_rpm,raw_a,raw_b,aligned_a,aligned_b,travel_a,travel_b,error_pulses,error_output_deg,sample_skew_ms,age_a_ms,age_b_ms,quality,status_a,status_b,alarm_a,alarm_b
+12.924,sample,1,2,-30,30,-29.900,29.800,-106,141,-176,141,176,141,-35,-0.008,4.314,4.322,0.007,ok,1079,1079,0,0
+113.001,sample,1,2,-30,30,-29.900,29.800,-1742,1771,-1812,1771,1812,1771,-41,-0.009,4.315,4.323,0.008,ok,1079,1079,0,0
+212.981,sample,1,2,-30,30,-29.900,29.800,-3377,3400,-3447,3400,3447,3400,-47,-0.010,4.309,4.313,0.004,ok,1079,1079,0,0
+312.978,sample,1,2,-30,30,-29.900,29.800,-5012,5029,-5082,5029,5082,5029,-53,-0.011,4.307,4.311,0.004,ok,1079,1079,0,0
+413.084,sample,1,2,-30,30,-29.900,29.800,-6649,6660,-6720,6660,6720,6660,-60,-0.013,4.319,4.324,0.005,ok,1079,1079,0,0
+512.993,sample,1,2,-30,30,-29.900,29.800,-8282,8287,-8352,8287,8352,8287,-65,-0.014,4.310,4.314,0.004,ok,1079,1079,0,0
+613.053,sample,1,2,-30,30,-29.900,29.800,-9919,9918,-9989,9918,9989,9918,-71,-0.015,4.310,4.315,0.005,ok,1079,1079,0,0
+693.368,stopped,1,2,-30,30,0.000,0.000,-10596,10522,-10596,10522,10596,10522,-74,-0.016,12.934,18.385,5.452,ok,1079,1079,0,0
+# requested_ms=650 trigger_a_ms=1 trigger_b_ms=3 stop_request_a_ms=650 stop_request_b_ms=650 confirmed_at_ms=667 max_valid_error_deg=0.0152947
+# end_reason=requested duration elapsed
