@@ -1,0 +1,655 @@
+{
+  "directions": {
+    "TX": 109350,
+    "RX": 139215
+  },
+  "frame_types": {
+    "SDO请求": {
+      "TX": 101344
+    },
+    "SDO应答": {
+      "RX": 101344
+    },
+    "TPDO3": {
+      "RX": 18034
+    },
+    "TPDO1": {
+      "RX": 18034
+    },
+    "主站心跳": {
+      "TX": 8006
+    },
+    "节点心跳": {
+      "RX": 1803
+    }
+  },
+  "trace_seconds": 1802.111413,
+  "objects": {
+    "0x1000:00": {
+      "reads": 817,
+      "writes": 0,
+      "replies": 817,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 817,
+        "min": 0.019,
+        "avg": 1.0952,
+        "p50": 1.096,
+        "p95": 1.108,
+        "p99": 1.1518,
+        "max": 2.169
+      }
+    },
+    "0x606C:00": {
+      "reads": 26091,
+      "writes": 0,
+      "replies": 26091,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 26091,
+        "min": 0.01,
+        "avg": 1.0965,
+        "p50": 1.094,
+        "p95": 1.105,
+        "p99": 1.157,
+        "max": 14.032
+      }
+    },
+    "0x1018:01": {
+      "reads": 816,
+      "writes": 0,
+      "replies": 816,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 816,
+        "min": 0.02,
+        "avg": 1.0918,
+        "p50": 1.094,
+        "p95": 1.104,
+        "p99": 1.1359,
+        "max": 1.372
+      }
+    },
+    "0x1018:02": {
+      "reads": 816,
+      "writes": 0,
+      "replies": 816,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 816,
+        "min": 0.019,
+        "avg": 1.1063,
+        "p50": 1.094,
+        "p95": 1.1043,
+        "p99": 1.1802,
+        "max": 14.386
+      }
+    },
+    "0x6041:00": {
+      "reads": 24810,
+      "writes": 0,
+      "replies": 24810,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 24810,
+        "min": 0.019,
+        "avg": 1.0971,
+        "p50": 1.097,
+        "p95": 1.111,
+        "p99": 1.16,
+        "max": 5.799
+      }
+    },
+    "0x260E:00": {
+      "reads": 24811,
+      "writes": 0,
+      "replies": 24811,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 24811,
+        "min": 0.011,
+        "avg": 1.0963,
+        "p50": 1.094,
+        "p95": 1.106,
+        "p99": 1.154,
+        "max": 11.183
+      }
+    },
+    "0x2601:00": {
+      "reads": 819,
+      "writes": 2,
+      "replies": 821,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 821,
+        "min": 1.054,
+        "avg": 1.1003,
+        "p50": 1.094,
+        "p95": 1.105,
+        "p99": 1.1578,
+        "max": 3.608
+      }
+    },
+    "0x6064:00": {
+      "reads": 16244,
+      "writes": 0,
+      "replies": 16244,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 16244,
+        "min": 0.017,
+        "avg": 1.0936,
+        "p50": 1.094,
+        "p95": 1.103,
+        "p99": 1.152,
+        "max": 7.399
+      }
+    },
+    "0x6078:00": {
+      "reads": 816,
+      "writes": 0,
+      "replies": 816,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 816,
+        "min": 0.022,
+        "avg": 1.0904,
+        "p50": 1.094,
+        "p95": 1.103,
+        "p99": 1.1508,
+        "max": 1.355
+      }
+    },
+    "0x6079:00": {
+      "reads": 816,
+      "writes": 0,
+      "replies": 816,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 816,
+        "min": 0.02,
+        "avg": 1.0989,
+        "p50": 1.094,
+        "p95": 1.105,
+        "p99": 1.2114,
+        "max": 2.207
+      }
+    },
+    "0x2612:00": {
+      "reads": 816,
+      "writes": 0,
+      "replies": 816,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 816,
+        "min": 0.019,
+        "avg": 1.0948,
+        "p50": 1.094,
+        "p95": 1.105,
+        "p99": 1.2125,
+        "max": 2.16
+      }
+    },
+    "0x261E:00": {
+      "reads": 816,
+      "writes": 0,
+      "replies": 816,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 816,
+        "min": 0.019,
+        "avg": 1.0918,
+        "p50": 1.094,
+        "p95": 1.102,
+        "p99": 1.149,
+        "max": 2.179
+      }
+    },
+    "0x6040:00": {
+      "reads": 0,
+      "writes": 1223,
+      "replies": 1223,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 1223,
+        "min": 0.019,
+        "avg": 1.0897,
+        "p50": 1.094,
+        "p95": 1.106,
+        "p99": 1.1803,
+        "max": 2.159
+      }
+    },
+    "0x60FF:00": {
+      "reads": 0,
+      "writes": 813,
+      "replies": 813,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 813,
+        "min": 0.02,
+        "avg": 1.0998,
+        "p50": 1.094,
+        "p95": 1.105,
+        "p99": 1.1999,
+        "max": 3.003
+      }
+    },
+    "0x607A:00": {
+      "reads": 0,
+      "writes": 1,
+      "replies": 1,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 1,
+        "min": 1.098,
+        "avg": 1.098,
+        "p50": 1.098,
+        "p95": 1.098,
+        "p99": 1.098,
+        "max": 1.098
+      }
+    },
+    "0x1016:01": {
+      "reads": 3,
+      "writes": 2,
+      "replies": 5,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 5,
+        "min": 1.09,
+        "avg": 1.0932,
+        "p50": 1.094,
+        "p95": 1.0958,
+        "p99": 1.096,
+        "max": 1.096
+      }
+    },
+    "0x6060:00": {
+      "reads": 0,
+      "writes": 406,
+      "replies": 406,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 406,
+        "min": 1.058,
+        "avg": 1.0951,
+        "p50": 1.094,
+        "p95": 1.102,
+        "p99": 1.1498,
+        "max": 1.648
+      }
+    },
+    "0x6083:00": {
+      "reads": 0,
+      "writes": 406,
+      "replies": 406,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 406,
+        "min": 1.055,
+        "avg": 1.0961,
+        "p50": 1.094,
+        "p95": 1.1028,
+        "p99": 1.2011,
+        "max": 1.592
+      }
+    }
+  },
+  "latency_ms": {
+    "samples": 101344,
+    "min": 0.01,
+    "avg": 1.096,
+    "p50": 1.094,
+    "p95": 1.107,
+    "p99": 1.156,
+    "max": 14.386
+  },
+  "heartbeat_interval_ms": {
+    "samples": 8005,
+    "min": 11.998,
+    "avg": 225.0898,
+    "p50": 239.993,
+    "p95": 242.7228,
+    "p99": 254.5434,
+    "max": 281.493
+  },
+  "speed_min_rpm": -302.7,
+  "speed_max_rpm": 303.6,
+  "position_min": 638454,
+  "position_max": 1134741,
+  "position_first": 638612,
+  "position_last": 641088,
+  "net_position_change": 2476,
+  "kernel_drop_increment": 0,
+  "driver_samples": [
+    {
+      "line": 8264,
+      "TX": 3635,
+      "RX": 4626,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 16593,
+      "TX": 7302,
+      "RX": 9286,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 24864,
+      "TX": 10939,
+      "RX": 13918,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 33070,
+      "TX": 14543,
+      "RX": 18518,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 41331,
+      "TX": 18175,
+      "RX": 23145,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 49559,
+      "TX": 21799,
+      "RX": 27747,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 57899,
+      "TX": 25462,
+      "RX": 32422,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 66190,
+      "TX": 29109,
+      "RX": 37064,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 74380,
+      "TX": 32706,
+      "RX": 41655,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 82715,
+      "TX": 36384,
+      "RX": 46310,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 91025,
+      "TX": 40033,
+      "RX": 50969,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 99272,
+      "TX": 43659,
+      "RX": 55588,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 107572,
+      "TX": 47312,
+      "RX": 60233,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 115875,
+      "TX": 50969,
+      "RX": 64877,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 124236,
+      "TX": 54649,
+      "RX": 69556,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 132455,
+      "TX": 58261,
+      "RX": 74161,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 140737,
+      "TX": 61904,
+      "RX": 78798,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 149052,
+      "TX": 65563,
+      "RX": 83452,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 157326,
+      "TX": 69201,
+      "RX": 88086,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 165561,
+      "TX": 72821,
+      "RX": 92699,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 173798,
+      "TX": 76441,
+      "RX": 97314,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 182037,
+      "TX": 80070,
+      "RX": 101922,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 190401,
+      "TX": 83746,
+      "RX": 106608,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 198700,
+      "TX": 87396,
+      "RX": 111255,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 206894,
+      "TX": 90995,
+      "RX": 115848,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 215211,
+      "TX": 94655,
+      "RX": 120503,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 223512,
+      "TX": 98307,
+      "RX": 125150,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 231763,
+      "TX": 101934,
+      "RX": 129772,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 239986,
+      "TX": 105547,
+      "RX": 134380,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 248245,
+      "TX": 109179,
+      "RX": 139005,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    },
+    {
+      "line": 248628,
+      "TX": 109350,
+      "RX": 139215,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    }
+  ],
+  "events": [],
+  "unmatched_responses": [],
+  "pending_requests": [],
+  "duplicate_requests": [],
+  "requests_without_unique_reply": 0,
+  "alarm_counts": {
+    "0x0020": 2,
+    "0x0000": 24809
+  },
+  "nonzero_alarms": [
+    {
+      "seconds": 0.337561,
+      "value": 32
+    },
+    {
+      "seconds": 0.375597,
+      "value": 32
+    }
+  ],
+  "last_alarm": {
+    "seconds": 1802.312885,
+    "value": 0
+  },
+  "motion": {
+    "completed_actions": 406,
+    "forward_count": 203,
+    "reverse_count": 203,
+    "position_direction_observed_actions": 406,
+    "speed_direction_observed_actions": 406,
+    "still_gate_retries": 2,
+    "action_wall_seconds": {
+      "samples": 406,
+      "min": 3.8158,
+      "avg": 3.9035,
+      "p50": 3.8947,
+      "p95": 4.015,
+      "p99": 4.1241,
+      "max": 4.2691
+    },
+    "confirmed_forward_hold_seconds": {
+      "samples": 203,
+      "min": 1.0001,
+      "avg": 1.0002,
+      "p50": 1.0001,
+      "p95": 1.0002,
+      "p99": 1.0007,
+      "max": 1.0084
+    }
+  }
+}

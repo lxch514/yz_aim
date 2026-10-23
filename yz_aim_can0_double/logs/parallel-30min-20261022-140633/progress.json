@@ -1,0 +1,17 @@
+{
+  "cycles": 20,
+  "actions": 41,
+  "elapsed_seconds": 197.651,
+  "latest": {
+    "csv": "/root/yz_aim_can0_double/logs/parallel-30min-20261022-140633/motion-20261022-140949-5124-940220919817.csv",
+    "samples": 38,
+    "nominal_rpm": 300,
+    "stop_request_a_ms": 3000,
+    "stop_request_b_ms": 3000,
+    "end_reason": "requested duration elapsed",
+    "maximum_recorded_position_error_deg": 3.849,
+    "command": "extend",
+    "wall_seconds": 4.299,
+    "still_retries": 0
+  }
+}

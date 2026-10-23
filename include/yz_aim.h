@@ -1,5 +1,4 @@
 #pragma once
-// YZ-AIM CANopen 驱动接口：传输层抽象、SDO 客户端、电机安全门禁与运动控制。
 
 #include <array>
 #include <atomic>
@@ -115,23 +114,26 @@ struct Snapshot {
 // Consumers copy the data; they must not call Motor or Transport from inside it.
 using ProgressCallback = std::function<void(const Snapshot&)>;
 
+// Additional per-reply limits. Zero preserves the caller's legacy budget.
+// Positive limits start after send() returns and never extend the caller deadline.
+struct SdoReplyTimeouts {
+    std::chrono::milliseconds read{0};
+    std::chrono::milliseconds write{0};
+};
+
 class SdoClient {
 public:
-    SdoClient(Transport& transport, uint8_t node);
+    SdoClient(Transport& transport, uint8_t node, SdoReplyTimeouts timeouts = {});
     Result read(uint16_t index, uint8_t subindex, uint8_t width, uint32_t& value, Deadline deadline);
     // One frame only, never automatically retries; return codes distinguish timeout and abort.
     Result write(uint16_t index, uint8_t subindex, uint8_t width, uint32_t value, Deadline deadline);
-    // 改设备地址后驱动器立刻改用新节点号发应答，而请求 COB-ID 要断电重新上电才更新，
-    // 这段过渡期里旧、新两个节点号的应答都要收（alternate 传 0 表示不留备用应答号）。
-    void accept_reply_from(uint8_t primary, uint8_t alternate);
 private:
     Result exchange(const Frame& request, uint16_t index, uint8_t subindex,
                     uint8_t width, uint32_t* value, Deadline deadline);
     Transport& transport_;
     uint8_t node_;
-    uint8_t reply_node_ = 0;     // 0 表示与 node_ 相同
-    uint8_t reply_node_alt_ = 0; // 0 表示无备用
     bool poisoned_ = false;
+    SdoReplyTimeouts timeouts_;
 };
 
 // A Motor owns no transport. Caller keeps Transport alive until Motor is destroyed.
@@ -140,7 +142,7 @@ private:
 // safety read may send a single unconfirmed emergency hold.
 class Motor {
 public:
-    Motor(Transport& transport, uint8_t node = 1);
+    Motor(Transport& transport, uint8_t node = 1, SdoReplyTimeouts timeouts = {});
     ~Motor();
     Motor(const Motor&) = delete;
     Motor& operator=(const Motor&) = delete;
@@ -167,21 +169,11 @@ public:
                          const ProgressCallback& progress = {}); // target within manual limits, fresh actual
     Result jog(int32_t rpm, std::chrono::milliseconds duration, Deadline deadline,
                const ProgressCallback& progress = {}); // abs(rpm)<=3000, <=5s
-    // 速度模式连续运转：与 jog 共用同一套时序与看护，只把时长上限放到 10 分钟。
-    Result spin(int32_t rpm, std::chrono::milliseconds duration, Deadline deadline,
-                const ProgressCallback& progress = {}); // abs(rpm)<=3000, 1..600s
-    // 常转：下发速度模式后立即返回，由调用方周期调用 sustain_service 维持看护，直到 stop。
-    Result start_velocity(int32_t rpm, Deadline deadline,
-                          const ProgressCallback& progress = {}); // abs(rpm)<=3000, 运行方向上须留足 1 分钟行程
-    // 常转看护：维持心跳并做一次状态/报警/速度/位置读检查；返回非 none 表示已判不安全并停发心跳。
-    Result sustain_service(Deadline deadline, const ProgressCallback& progress = {});
     // No implicit save/reset/reconnect; intended as setup operations only while disabled/stationary.
     Result stage_node_id(uint8_t new_node, Deadline deadline); // 0x2615 then 0x2614=1, poll ==2
     Result stage_bitrate(uint32_t bitrate, Deadline deadline); // 125/250/500/1000 kbit/s; reboot
     bool unsafe_latched() const { return unsafe_; }
     bool armed() const { return armed_; }
-    bool sustaining() const { return sustaining_; }
-    int32_t sustained_rpm() const { return sustain_rpm_; }
     bool cleanup_required() const { return output_enabled_ || control_attempted_ || consumer_overridden_; }
     uint8_t node() const { return node_; }
 private:
@@ -196,8 +188,6 @@ private:
     Result finish_motion(Deadline deadline);
     Result heartbeat(Deadline deadline);
     Result watch_motion(Deadline deadline, int64_t expected_position, const ProgressCallback& progress);
-    Result run_velocity(int32_t rpm, std::chrono::milliseconds duration, bool continuous,
-                        Deadline deadline, const ProgressCallback& progress);
     Result cancel_motion(Deadline deadline);
     Result publish_progress(const ProgressCallback& progress, Snapshot sample);
     Transport& transport_;
@@ -205,7 +195,6 @@ private:
     uint8_t node_;
     bool armed_ = false, unsafe_ = false, watchdog_started_ = false, output_enabled_ = false;
     bool control_attempted_ = false, consumer_overridden_ = false;
-    bool sustaining_ = false; int32_t sustain_rpm_ = 0;
     bool operation_clear_attempted_ = false; // 0x0100 phase: emergency must not reassert enable bits
     uint32_t previous_consumer_ = 0;
     std::atomic<bool> cancel_requested_{false};
@@ -213,4 +202,11 @@ private:
     Snapshot last_{};
 };
 
+// LYS USBCANFD-Mini adapter; runtime-load liblyscan.so from explicit library_path.
+// No vendor library is linked into Controller. Opening does not transmit any frame.
+class FrameTrace;
+std::unique_ptr<Transport> open_lys_can(const std::string& library_path,
+                                        uint32_t bitrate, std::string& error,
+                                        uint32_t device = 0, uint32_t channel = 0,
+                                        uint32_t nominal_timing = 0, FrameTrace* trace = nullptr);
 } // namespace yz_aim

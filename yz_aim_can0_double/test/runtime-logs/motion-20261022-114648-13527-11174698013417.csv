@@ -1,0 +1,6 @@
+# version=1.2.2-equal-speed build=Oct 22 2026 11:46:28 command=extend nominal_rpm=30 requested_ms=120 zero_a=0 zero_b=0 node_a=1 node_b=2 sign_a=-1 hard_limit_output_deg=0.5 max_trim_rpm=5 mode=position_sync position_guard_active=1
+elapsed_ms,event,node_a,node_b,target_a_rpm,target_b_rpm,actual_a_rpm,actual_b_rpm,raw_a,raw_b,aligned_a,aligned_b,travel_a,travel_b,error_pulses,error_output_deg,sample_skew_ms,age_a_ms,age_b_ms,age_speed_a_ms,age_speed_b_ms,estimated_accel_a,estimated_accel_b,quality,status_a,status_b,alarm_a,alarm_b
+236.955,final_position,1,2,-30,30,0.000,0.000,-1876,1869,-1876,1869,1876,1869,-7,-0.002,36.318,52.271,15.954,49.070,12.752,0.000,0.000,ok,1079,1079,0,0
+237.087,stopped,1,2,-30,30,0.000,0.000,-1876,1869,-1876,1869,1876,1869,-7,-0.002,36.318,52.404,16.086,49.203,12.885,0.000,0.000,ok,1079,1079,0,0
+# requested_ms=120 trigger_a_ms=3 trigger_b_ms=3 stop_request_a_ms=122 stop_request_b_ms=122 confirmed_at_ms=164 max_valid_error_deg=0.00150793
+# end_reason=requested duration elapsed

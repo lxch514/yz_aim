@@ -1,3 +1,15 @@
+# 1.2.1-monitor：独立通信监测
+
+控制终端不再刷CAN帧；另开终端在本目录运行 `python3 -B can_monitor.py`，默认每分钟中文汇总、异常即时提示，`--frames` 可实时刷屏。
+详见[实机交付与启动命令](docs/实机交付与独立通信监测.md)。
+
+以下为旧版本历史记录，以1.2.1说明为准。
+
+# 2026-10-21: 1.2.0-trace
+
+默认持续输出CAN TX/RX与每秒统计；--no-trace关闭。详见[双轴操作与CAN诊断](docs/双轴操作与CAN诊断.md)。
+本次两版各通过45秒带逐帧诊断的假驱动器运行，实际电机未接入验证。
+
 # 当前版本：1.1.0-minimal
 
 仅此双轴目录更新；默认伸出节点2正、节点1反，命令使用 `extend` / `retract`。最新操作以 [双轴同步使用说明](docs/双轴同步使用说明.md) 和 [命令速查](docs/双轴命令速查.md) 为准。
@@ -484,8 +496,6 @@ cd /root/yz_aim && ./build.sh --only yz_aim_cli
 ./build-native/release/bin/yz_aim_cli --bitrate 1000000 --node 1 --yes set-node 2
 ```
 
-
-
 # 然后断电重新上电，这台就是 node 2 了
 
 ```bash
@@ -508,8 +518,11 @@ export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     --bitrate 1000000 --abit-timing 0x01400106 \
     --node 1 --lys 0 --channel 0 \
     --library /usr/local/lib/liblyscan.so
-```
 
+
+cd /root/yz_aim
+./build-native/release/bin/yz_aim_cli --node 1 --library /root/yz_aim/lib/liblyscan.so --lys 0 --channel 0 --bitrate 1000000
+```
 
 
 yz_aim_can0/

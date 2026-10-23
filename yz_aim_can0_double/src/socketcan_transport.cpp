@@ -1,5 +1,6 @@
 #include "socketcan_transport.h"
 #include "can_link_query.h"
+#include "frame_trace.h"
 
 #include <array>
 #include <cerrno>
@@ -24,8 +25,8 @@ constexpr std::size_t kReceiveBufferBytes = sizeof(struct canfd_frame);
 
 } // namespace
 
-SocketCanTransport::SocketCanTransport(std::string interface_name, uint8_t node)
-    : interface_(std::move(interface_name)), node_(node) {}
+SocketCanTransport::SocketCanTransport(std::string interface_name, uint8_t node, FrameTrace* trace)
+    : trace_(trace), interface_(std::move(interface_name)), node_(node) {}
 
 SocketCanTransport::~SocketCanTransport() {
     if (descriptor_ >= 0) ::close(descriptor_);
@@ -86,6 +87,11 @@ bool SocketCanTransport::open(std::string& error) {
         descriptor_ = -1;
         return false;
     }
+    const int one = 1, receive_bytes = 256*1024;
+    (void)::setsockopt(descriptor_,SOL_SOCKET,SO_RCVBUF,&receive_bytes,sizeof(receive_bytes));
+    (void)::setsockopt(descriptor_,SOL_SOCKET,SO_RXQ_OVFL,&one,sizeof(one));
+    const can_err_mask_t errors = CAN_ERR_MASK;
+    (void)::setsockopt(descriptor_,SOL_CAN_RAW,CAN_RAW_ERR_FILTER,&errors,sizeof(errors));
     // 不接收自己发出的帧，与 USB-CAN 适配器的行为一致。
     const int own_messages = 0;
     (void)::setsockopt(descriptor_, SOL_CAN_RAW, CAN_RAW_RECV_OWN_MSGS, &own_messages, sizeof(own_messages));
@@ -111,16 +117,22 @@ bool SocketCanTransport::accept_sdo_replies(uint8_t primary, uint8_t alternate) 
 }
 
 bool SocketCanTransport::send(const Frame& frame) {
-    if (descriptor_ < 0 || fatal_) return false;
-    if (frame.id > 0x7ff || frame.dlc > 8) return false;
+    if (descriptor_ < 0 || fatal_ || frame.id > 0x7ff || frame.dlc > 8) {
+        if (trace_) trace_->frame("TX_ERR",frame);
+        return false;
+    }
     struct can_frame classic {};
     classic.can_id = frame.id;
     classic.len = frame.dlc;
     for (unsigned i = 0; i < frame.dlc; ++i) classic.data[i] = frame.data[i];
     for (;;) {
         const ssize_t written = ::write(descriptor_, &classic, kClassicFrameBytes);
-        if (written == static_cast<ssize_t>(kClassicFrameBytes)) return true;
+        if (written == static_cast<ssize_t>(kClassicFrameBytes)) {
+            if (trace_) trace_->frame("TX",frame);
+            return true;
+        }
         if (written < 0 && errno == EINTR) continue;
+        if (trace_) trace_->frame("TX_ERR",frame);
         if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOBUFS)) {
             std::fprintf(stderr, "CAN %s 发送队列已满，本帧未发出。\n", interface_.c_str());
             fatal_ = true;
@@ -157,7 +169,19 @@ bool SocketCanTransport::receive(Frame& frame, Deadline deadline) {
         if ((descriptor.revents & (POLLIN | POLLERR | POLLHUP)) == 0) continue;
 
         std::array<uint8_t, kReceiveBufferBytes> buffer{};
-        const ssize_t received = ::read(descriptor_, buffer.data(), buffer.size());
+        alignas(cmsghdr) char control[CMSG_SPACE(sizeof(uint32_t))]{};
+        iovec iov{buffer.data(),buffer.size()};
+        msghdr message{};
+        message.msg_iov=&iov; message.msg_iovlen=1;
+        message.msg_control=control; message.msg_controllen=sizeof(control);
+        const ssize_t received = ::recvmsg(descriptor_, &message, 0);
+        if (received >= 0) for (auto* c=CMSG_FIRSTHDR(&message);c;c=CMSG_NXTHDR(&message,c)) {
+            if (c->cmsg_level==SOL_SOCKET && c->cmsg_type==SO_RXQ_OVFL && c->cmsg_len>=CMSG_LEN(sizeof(uint32_t))) {
+                uint32_t total=0; std::memcpy(&total,CMSG_DATA(c),sizeof(total));
+                if (trace_) trace_->kernel_dropped(static_cast<uint32_t>(total-rx_dropped_));
+                rx_dropped_=total;
+            }
+        }
         if (received < 0) {
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) return false;
             mark_fatal("接收");
@@ -168,12 +192,17 @@ bool SocketCanTransport::receive(Frame& frame, Deadline deadline) {
 
         struct can_frame classic {};
         std::memcpy(&classic, buffer.data(), kClassicFrameBytes);
-        if ((classic.can_id & (CAN_EFF_FLAG | CAN_RTR_FLAG | CAN_ERR_FLAG)) != 0) return false;
+        if (classic.can_id & CAN_ERR_FLAG) {
+            if (trace_) trace_->raw("RX_ERROR",classic.can_id,classic.len,classic.data);
+            continue;
+        }
+        if ((classic.can_id & (CAN_EFF_FLAG | CAN_RTR_FLAG)) != 0) continue;
         if (classic.len > 8) return false;
         frame = {};
         frame.id = static_cast<uint16_t>(classic.can_id & CAN_SFF_MASK);
         frame.dlc = classic.len;
         for (unsigned i = 0; i < classic.len; ++i) frame.data[i] = classic.data[i];
+        if (trace_) trace_->frame("RX",frame);
         return true;
     }
 }

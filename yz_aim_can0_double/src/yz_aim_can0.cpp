@@ -1,10 +1,17 @@
-// yz_aim_can0 —— 用板载 CAN（SocketCAN，如 can0）直连维护 YZ-AIM CANopen 一体伺服。
+// YZ-AIM 双轴命令与控制循环；USB构建通过 YZ_AIM_USB_DOUBLE 选择共享USB传输。
 #include "yz_aim.h"
 #include "yz_aim_sync.h"
 #include "motion_log.h"
 #include <filesystem>
 #include "socketcan_transport.h"
 #include "can_link_query.h"
+#include "frame_trace.h"
+#include "session_lock.h"
+#include <fcntl.h>
+#ifdef YZ_AIM_USB_DOUBLE
+#include "lys_transport.h"
+#include "shared_can_bus.h"
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -38,8 +45,12 @@ using yz_aim::Result;
 using yz_aim::Snapshot;
 using yz_aim::SocketCanTransport;
 
+#ifdef YZ_AIM_USB_DOUBLE
+constexpr const char* kProgram = "yz_aim_double";
+#else
 constexpr const char* kProgram = "yz_aim_can0";
-constexpr const char* kVersion = "1.1.0-minimal";
+#endif
+constexpr const char* kVersion = "1.2.3-start-confirm";
 constexpr uint32_t kDefaultNode = 1;
 constexpr uint32_t kDefaultBitrate = 1000000;
 constexpr uint64_t kDefaultTimeoutMs = 20000;
@@ -240,10 +251,16 @@ void show_progress(const Snapshot& snapshot) {
 
 struct Options {
     std::string interface_name = "can0";
+    std::string log_directory;
     uint32_t node = kDefaultNode;
     uint32_t node2 = 2; // 第二轴节点号；0 表示只用单轴
     uint32_t bitrate = kDefaultBitrate;
     uint64_t timeout_ms = kDefaultTimeoutMs;
+    bool trace = true;
+#ifdef YZ_AIM_USB_DOUBLE
+    std::string library = "liblyscan.so";
+    uint32_t device = 0, channel = 0, nominal_timing = 0;
+#endif
     bool assume_yes = false;
     bool help = false;
     bool version = false;
@@ -252,9 +269,16 @@ struct Options {
 
 void print_usage() {
     std::cout <<
-        "YZ-AIM can0 1.1.0-minimal  构建 " __DATE__ " " __TIME__ "\n"
-        "用法：yz_aim_can0 [--if can0] [--node 1] [--node2 2] [--yes] [命令 参数...]\n"
+        "YZ-AIM " << kProgram << " " << kVersion << " 构建 " __DATE__ " " __TIME__ "\n"
+        "用法：" << kProgram << " [选项] [命令 参数...]\n"
+#ifdef YZ_AIM_USB_DOUBLE
+        "USB选项：--library /路径/liblyscan.so --lys 0 --channel 0 --abit-timing 0x01400106\n"
+#else
+        "接口选项：--if can0\n"
+#endif
+        "节点选项：--node 1 --node2 2；通讯帧默认写logs文件；同目录can_monitor.py独立监测，--no-trace关闭记录。\n"
         "选项：--bitrate 1000000  --timeout 毫秒  --node2 0（单轴） --version --help\n"
+        "      --log-dir 本程序logs下的目录   CAN帧和运动CSV统一写入该目录\n"
         "默认双轴：节点2取正、节点1取负；启动只读，不自动使能或运动。\n\n"
         "双轴：\n"
         "  sync-enable / sync-disable         两轴安全使能 / 同时停止再失能\n"
@@ -265,6 +289,7 @@ void print_usage() {
         "  sync-run <带符号rpm>               常转直到sync-stop；也需要sync-zero\n"
         "  sync-stop                          同时停止两轴并确认，结束CSV日志\n"
         "  sync-status                        两轴状态、固定零点偏差及同步修正设置\n"
+        "  sync-mode speed|position           等速测试 / 原位置同步；默认position\n"
         "  sync-correct <0~10RPM>             最大减速修正，默认5，另受名义速度10%限制\n"
         "  sync-tol <输出角度>                真实累计偏差保护，默认0.5度；0为显式关闭\n"
         "  sync-drift <RPM>                   速度差告警参考，不会增加累计偏差门限\n"
@@ -274,7 +299,7 @@ void print_usage() {
         "  set-lead <mm/输出圈> / sync-mm <mm> [rpm]\n"
         "  jog <带符号rpm> [ms]               双轴点动，默认500ms，上限5000ms\n"
         "  one <节点> <带符号rpm> <ms> / one-stop  指定一轴单动/两轴停止\n"
-        "速度命令上限300电机RPM，时长1~600000ms。速度是名义上限，领先轴可小幅减速。\n"
+        "速度命令上限300电机RPM，时长1~600000ms。speed模式两轴目标等幅反向，位置差仅记录。\n"
         "速度运动前必须sync-enable、静止时sync-zero。所有速度动作写本目录logs/*.csv。\n\n"
         "单轴（--node2 0）：\n"
         "  enable / disable / stop\n"
@@ -288,7 +313,7 @@ void print_usage() {
 void print_help() {
     print_usage();
     std::cout <<
-        "\n建议流程：sync-enable → sync-zero → extend 300 50000 → retract 300 50000 → sync-disable。\n"
+        "\n等速测试：sync-mode speed → sync-enable → sync-zero → extend 300 3000 → retract 300 3000 → sync-disable。\n"
         "sync-zero只记软件基准，不移动或写硬件零点；退出后重新确认，禁止运动中重新置零。\n"
         "位置按采样时刻对齐；不再每拍清除累计错位。修正只减速，不反向、不超过命令速度。\n"
         "到时先给两轴停止，再确认停稳；停止请求时刻与物理停稳时刻分别记入CSV。\n"
@@ -309,11 +334,39 @@ bool parse_options(int argc, char** argv, Options& options) {
         };
         if (argument == "--help" || argument == "-h") { options.help = true; return true; }
         if (argument == "--version") { options.version = true; return true; }
+        if (argument == "--no-trace") { options.trace = false; continue; }
+        if (argument == "--log-dir") {
+            if (!next_value("--log-dir", options.log_directory) || options.log_directory.empty()) return false;
+            continue;
+        }
+#ifdef YZ_AIM_USB_DOUBLE
+        if (argument == "--library") {
+            if (!next_value("--library", options.library) || options.library.empty()) return false;
+            continue;
+        }
+        if (argument == "--lys" || argument == "--channel" || argument == "--abit-timing") {
+            std::string value;
+            if (!next_value(argument.c_str(), value) || value.empty() || value[0]=='-') return false;
+            char* end = nullptr;
+            errno = 0;
+            const unsigned long number = std::strtoul(value.c_str(), &end, 0);
+            if (errno || *end || number > UINT32_MAX ||
+                (argument=="--channel" && number > 1) || (argument=="--lys" && number > 255)) {
+                std::cerr << "USB选项数值无效：" << argument << "\n"; return false;
+            }
+            if (argument=="--lys") options.device=static_cast<uint32_t>(number);
+            else if (argument=="--channel") options.channel=static_cast<uint32_t>(number);
+            else options.nominal_timing=static_cast<uint32_t>(number);
+            continue;
+        }
+#endif
         if (argument == "--yes") { options.assume_yes = true; continue; }
+#ifndef YZ_AIM_USB_DOUBLE
         if (argument == "--if") {
             if (!next_value("--if", options.interface_name)) return false;
             continue;
         }
+#endif
         if (argument == "--node") {
             std::string value;
             if (!next_value("--node", value) || !parse_u32(value, 1, 127, options.node)) {
@@ -346,6 +399,7 @@ bool parse_options(int argc, char** argv, Options& options) {
                 return false;
             }
             options.timeout_ms = milliseconds;
+
             continue;
         }
         // 第一个非选项参数起，后面一律按命令及其参数处理：否则 sync-rel -720 / sync-mm -10
@@ -364,22 +418,29 @@ bool parse_options(int argc, char** argv, Options& options) {
 }
 
 struct Session {
+    Session(Motor& motor_ref, yz_aim::Transport& transport_ref, uint8_t node_id,
+            uint64_t budget_ms, bool yes, std::string label = "USB-CAN")
+        : motor(motor_ref), transport(transport_ref), interface_label(std::move(label)), node(node_id),
+          timeout_ms(budget_ms), assume_yes(yes) {}
     Session(Motor& motor_ref, SocketCanTransport& transport_ref, uint8_t node_id,
             uint64_t budget_ms, bool yes)
-        : motor(motor_ref), transport(transport_ref), node(node_id),
-          timeout_ms(budget_ms), assume_yes(yes) {}
+        : Session(motor_ref, static_cast<yz_aim::Transport&>(transport_ref), node_id,
+                  budget_ms, yes, transport_ref.interface_name()) {}
     Motor& motor;
-    SocketCanTransport& transport;
+    yz_aim::Transport& transport;
+    std::string interface_label;
     // B 轴自己的传输层（单轴模式为空）。两轴各用一条套接字，接收过滤器只放行本节点报文。
-    SocketCanTransport* transport2 = nullptr;
+    yz_aim::Transport* transport2 = nullptr;
     uint8_t node = kDefaultNode;
     bool enabled = false;
     uint32_t motion_rpm = static_cast<uint32_t>(yz_aim::kPositionProfileRpm);
     uint64_t timeout_ms = kDefaultTimeoutMs;
     bool assume_yes = false;
     int command_rc = 0;
+    bool trace_idle = false;
     yz_aim::VelocitySynchronizer synchronizer;
     double correction_rpm = 5.0;
+    bool equal_speed_test = false; // explicit per-session opt-in; position protection remains the default
     double max_error_deg = 0;
     double acceleration_a = 0, acceleration_b = 0;
     Snapshot previous_feedback_a{}, previous_feedback_b{};
@@ -423,7 +484,7 @@ struct Session {
     int32_t sync_start_b = 0;
     int32_t sync_target_a = 0;
     int32_t sync_target_b = 0;
-    // sync-run 常转式的持续同步状态，由主循环每 200 ms 看护。
+    // sync-run 常转式的持续同步状态，由主循环每 100 ms 发起看护。
     bool sync_run_active = false;
     int32_t sync_run_rpm = 0;
     int sync_run_over = 0;
@@ -446,7 +507,7 @@ bool blocked_by_sustain(Session& session, const std::string& name) {
 
 Disposition command_status(Session& session) {
     const Snapshot snapshot = session.motor.snapshot(after_ms(session.timeout_ms));
-    print_snapshot(snapshot, session.node, session.transport.interface_name());
+    print_snapshot(snapshot, session.node, session.interface_label);
     if (!snapshot.result) report(snapshot.result, "读取状态");
     else if (snapshot.unsafe_latched) std::cout << "[!] 本会话已锁止，只能 stop / disable / 退出。\n";
     return Disposition::keep_going;
@@ -489,6 +550,16 @@ Disposition command_monitor(Session& session, const std::vector<std::string>& ar
             if (session.sync_run_active) {
                 bool prompt_shown = false;
                 sync_run_tick(session, prompt_shown);
+        if (session.trace_idle) {
+            // No SDO transaction is outstanding here; drain unsolicited frames for live RX tracing.
+            const auto until=Clock::now()+std::chrono::milliseconds(2);
+            for (auto* port : {&session.transport,session.transport2}) {
+                if (!port) continue;
+                yz_aim::Frame unsolicited;
+                for(unsigned n=0;n<128 && Clock::now()<until;++n)
+                    if(!port->receive(unsolicited,std::min(until,Clock::now()+std::chrono::microseconds(100)))) break;
+            }
+        }
                 if (!session.sync_run_active) { std::cout << "\n"; return Disposition::keep_going; }
             }
             std::this_thread::sleep_until(std::min(next, Clock::now() + std::chrono::milliseconds(kInputPollMs)));
@@ -1056,6 +1127,10 @@ bool sync_has_second(Session& session, const char* name) {
 }
 
 bool sync_needs_enabled(Session& session, const char* name) {
+    if(session.motor.unsafe_latched() || (session.second && session.second->unsafe_latched())) {
+        std::cout << "[失败] " << name << "：会话已因通信或安全异常锁止；请quit正常退出后重启，重新sync-enable和sync-zero。\n";
+        return false;
+    }
     if (!session.dual_enabled) {
         std::cout << "[失败] " << name << "：两轴尚未使能，请先执行 sync-enable。\n";
         return false;
@@ -1157,13 +1232,16 @@ Disposition command_sync_status(Session& session) {
     const Snapshot a = session.motor.snapshot(after_ms(session.timeout_ms));
     const Snapshot b = session.second->snapshot(after_ms(session.timeout_ms));
     std::cout << "--- A 轴（节点 " << static_cast<unsigned>(session.node) << "）---\n";
-    print_snapshot(a, session.node, session.transport.interface_name());
+    print_snapshot(a, session.node, session.interface_label);
+    if (!a.result) report(a.result,"A轴状态读取");
     std::cout << "--- B 轴（节点 " << static_cast<unsigned>(session.node2) << "）---\n";
-    print_snapshot(b, session.node2, session.transport.interface_name());
+    print_snapshot(b, session.node2, session.interface_label);
+    if (!b.result) report(b.result,"B轴状态读取");
     // 镜像方向与阈值不依赖电机应答，先打出来，接不上电机时也能核对极性。
     std::cout << "镜像方向 " << sync_dir_text(session) << "   一致性指标 = posA + posB\n"
+              << "速度运动模式 " << (session.equal_speed_test ? "等速测试：两轴目标等幅，位置差仅记录、不修正、不停机" : "位置同步：按固定零点修正并保护") << "\n"
               << "同步偏差阈值 " << fixed(session.sync_tolerance_deg, 4) << "°"
-              << (session.sync_tolerance_deg <= 0 ? "（监控已关闭）" : "") << "\n"
+              << (session.equal_speed_test ? "（本次速度测试仅记录）" : session.sync_tolerance_deg <= 0 ? "（监控已关闭）" : "") << "\n"
               << "速度差告警参考 " << fixed(session.sync_drift_rpm, 2)
               << " 电机RPM（sync-drift；累计保护不随时间放宽）\n"
               << "最大减速修正 " << session.correction_rpm << " RPM（另受名义速度10%限制）\n"
@@ -1238,6 +1316,23 @@ Disposition command_sync_tol(Session& session, const std::string& text) {
     std::cout << "同步偏差阈值 = " << fixed(degrees, 4) << "°"
               << (degrees <= 0 ? "（已关闭偏差监控）" : "") << "；约 "
               << static_cast<int64_t>(sync_tolerance_pulses(session)) << " 电机脉冲。\n";
+    return Disposition::keep_going;
+}
+
+Disposition command_sync_mode(Session& session, const std::string& mode) {
+    if (!sync_has_second(session, "sync-mode")) return Disposition::keep_going;
+    if (session.sync_run_active || session.motion_log || session.motor.sustaining()) {
+        std::cout << "[失败] 请先sync-stop再切换模式。\n";
+        return Disposition::keep_going;
+    }
+    if (mode != "speed" && mode != "position") {
+        std::cout << "[失败] 用法：sync-mode speed|position\n";
+        return Disposition::keep_going;
+    }
+    session.equal_speed_test = mode == "speed";
+    std::cout << (session.equal_speed_test
+        ? "已选等速测试模式：两轴目标RPM等幅反向；位置差仅记录，不调速、不因位置差停机。通信、报警、限位保护保留。\n"
+        : "已恢复位置同步模式：使用原固定零点、修正幅度和累计偏差保护。\n");
     return Disposition::keep_going;
 }
 
@@ -1522,7 +1617,7 @@ Result sync_velocity_sample(Session& session, Deadline until, int& over) {
     const double dt = std::chrono::duration<double>(now-session.feedback_at).count();
     session.feedback_at = now;
     const auto trim = session.synchronizer.update(f, dt, settled);
-    if (session.sync_tolerance_deg > 0 && std::abs(trim.error_deg) > session.sync_tolerance_deg) {
+    if (!session.equal_speed_test && session.sync_tolerance_deg > 0 && std::abs(trim.error_deg) > session.sync_tolerance_deg) {
         if (++over >= kSyncTripSamples) {
             std::ostringstream reason;
             reason << "固定零点累计偏差 " << trim.error_deg << "度连续" << over
@@ -1539,6 +1634,9 @@ Result sync_velocity_sample(Session& session, Deadline until, int& over) {
     if (std::abs(a.speed_rpm+b.speed_rpm) > session.sync_drift_rpm)
         if (!sync_log_sample(session, a, b, "speed_difference_warning"))
             return {Error::transport, 0, "CSV速度差告警记录失败"};
+    // The test compares both drives at identical speed magnitudes. Do not turn
+    // accumulated position error into unequal velocity targets in this mode.
+    if (session.equal_speed_test) return {};
     // Reserve both write-ACK windows. The final part of a timed move only reads feedback.
     if (until != Deadline::max() && until-now < std::chrono::milliseconds(300)) return {};
     if (trim.rpm_a != session.target_rpm_a) {
@@ -1582,7 +1680,7 @@ Disposition command_sync_velocity(Session& session, const std::vector<std::strin
         report(!base_a.result ? base_a.result : base_b.result, "读取双轴动作起点");
         return Disposition::keep_going;
     }
-    if (session.sync_tolerance_deg>0 &&
+    if (!session.equal_speed_test && session.sync_tolerance_deg>0 &&
         std::abs(double(static_cast<int64_t>(base_a.position_pulses)-session.sync_zero_a+
                         static_cast<int64_t>(base_b.position_pulses)-session.sync_zero_b)
                  *360.0/yz_aim::kOutputPulsesPerRevolution) > session.sync_tolerance_deg) {
@@ -1610,7 +1708,9 @@ Disposition command_sync_velocity(Session& session, const std::vector<std::strin
              << " zero_a=" << session.sync_zero_a << " zero_b=" << session.sync_zero_b
              << " node_a=" << unsigned(session.node) << " node_b=" << unsigned(session.node2)
              << " sign_a=" << sync_sign_a(session) << " hard_limit_output_deg=" << session.sync_tolerance_deg
-             << " max_trim_rpm=" << session.correction_rpm;
+             << " max_trim_rpm=" << session.correction_rpm
+             << " mode=" << (session.equal_speed_test ? "equal_speed" : "position_sync")
+             << " position_guard_active=" << (!session.equal_speed_test && session.sync_tolerance_deg>0);
     std::string log_error;
     if (!log->open(session.log_directory, metadata.str(), log_error)) {
         std::cout << "[失败] 日志未就绪，未启动运动：" << log_error << "\n";
@@ -1632,7 +1732,8 @@ Disposition command_sync_velocity(Session& session, const std::vector<std::strin
     std::cout << "A轴 " << session.target_rpm_a << " / B轴 " << session.target_rpm_b
               << " 名义电机RPM（" << sync_dir_text(session) << "），"
               << (continuous ? "常转直到sync-stop" : std::to_string(duration_ms)+"ms")
-              << "；固定零点同步修正，CSV=" << session.motion_log->path() << "\n" << std::flush;
+              << (session.equal_speed_test ? "；等幅速度测试，位置差仅记录，CSV=" : "；固定零点同步修正，CSV=")
+              << session.motion_log->path() << "\n" << std::flush;
     // Start before the first target write; do not restart the clock after serial SDO acknowledgements.
     session.sync_move_started = Clock::now();
     session.feedback_at = session.last_usable_feedback = session.sync_move_started;
@@ -1655,6 +1756,10 @@ Disposition command_sync_velocity(Session& session, const std::vector<std::strin
             sync_report_move(session, name, true);
         } else sync_trip(session, "速度触发未完整确认："+sync_reason_text(trigger));
         return Disposition::keep_going;
+    }
+    if(trigger.context=="paired_start_confirmed_by_readback") {
+        std::cout << "[通信提示] 启动SDO确认帧缺失；两轴模式/目标/状态/报警/输出/实际转速均已读回验证，继续本次计时；未重发启动命令。\n";
+        if(session.motion_log)(void)session.motion_log->append("# start_confirmation=readback_verified_after_missing_ack");
     }
     if (continuous) {
         session.sync_run_active = true;
@@ -2030,10 +2135,14 @@ Disposition command_set_bitrate(Session& session, const std::string& text) {
     const uint32_t bitrate = kbps * 1000;
     const Result result = session.motor.stage_bitrate(bitrate, after_ms(session.timeout_ms));
     if (report(result, "暂存 CAN 波特率 " + std::to_string(kbps) + " kbit/s")) {
+#ifdef YZ_AIM_USB_DOUBLE
+        std::cout << "请电机重新上电，并按新波特率重启USB工具；非1M需提供经验证的--abit-timing。\n";
+#else
         std::cout << "    请断电重新上电，然后执行："
-                     "ip link set " << session.transport.interface_name() << " down && ip link set "
-                  << session.transport.interface_name() << " type can bitrate " << bitrate
-                  << " && ip link set " << session.transport.interface_name() << " up\n";
+                     "ip link set " << session.interface_label << " down && ip link set "
+                  << session.interface_label << " type can bitrate " << bitrate
+                  << " && ip link set " << session.interface_label << " up\n";
+#endif
     }
     return Disposition::keep_going;
 }
@@ -2130,6 +2239,10 @@ Disposition dispatch(Session& session, const std::vector<std::string>& tokens) {
     if (name == "sync-stop") { if (want_no_arguments()) command_sync_stop(session); return Disposition::keep_going; }
     if (name == "sync-status") { if (want_no_arguments()) command_sync_status(session); return Disposition::keep_going; }
     if (name == "sync-zero") { if (want_no_arguments()) command_sync_zero(session); return Disposition::keep_going; }
+    if (name == "sync-mode") {
+        if (arguments.size() != 1) { std::cout << "用法：sync-mode speed|position\n"; return Disposition::keep_going; }
+        return command_sync_mode(session, arguments[0]);
+    }
     if (name == "sync-tol") {
         if (arguments.size() != 1) { std::cout << "用法：sync-tol <输出角度，度>\n"; return Disposition::keep_going; }
         return command_sync_tol(session, arguments[0]);
@@ -2315,16 +2428,32 @@ int run_session(Session& session) {
         if (eof && buffer.empty()) break;
         sustain_tick(session, prompt_shown);
         sync_run_tick(session, prompt_shown);
+        if(session.trace_idle) {
+            const auto until=Clock::now()+std::chrono::milliseconds(2);
+            for(auto* port : {&session.transport,session.transport2}) {
+                if(!port)continue;
+                yz_aim::Frame incoming;
+                for(unsigned n=0;n<128 && Clock::now()<until;++n)
+                    if(!port->receive(incoming,std::min(until,Clock::now()+std::chrono::microseconds(100))))break;
+            }
+        }
 
         if (!eof) {
             if (interactive && !prompt_shown) {
-                std::cout << (session.sync_run_active ? "yz(双轴常转)> "
+                std::cout << ((session.motor.unsafe_latched() || (session.second && session.second->unsafe_latched())) ? "yz(故障需重启)> "
+                              : session.sync_run_active ? "yz(双轴常转)> "
                               : session.motor.sustaining() ? "yz(常转)> "
                               : session.enabled ? "yz(已使能)> " : "yz(只读)> ") << std::flush;
                 prompt_shown = true;
             }
             pollfd input{STDIN_FILENO, POLLIN, 0};
-            const int ready = ::poll(&input, 1, kInputPollMs);
+            // Account for the time already spent reading both axes; do not add
+            // a fresh 100ms sleep after every feedback sweep.
+            int input_wait_ms=kInputPollMs;
+            if (session.sync_run_active)
+                input_wait_ms=static_cast<int>(std::clamp<int64_t>(
+                    std::chrono::duration_cast<std::chrono::milliseconds>(session.sync_run_next_tick-Clock::now()).count(),0,kInputPollMs));
+            const int ready = ::poll(&input, 1, input_wait_ms);
             if (ready < 0) {
                 if (errno == EINTR) continue;
                 std::cout << "读取标准输入失败，退出。\n";
@@ -2398,11 +2527,15 @@ void print_banner(const Options& options, const SocketCanTransport& transport) {
     else
         std::cout << "，内核未报告波特率（可能由设备树固定）";
     std::cout << "\n节点 " << options.node << "   期望波特率 " << options.bitrate << " bit/s\n";
-    if (options.node2)
+    if (options.node2) {
+        const bool numbered_pair=(options.node==1 && options.node2==2) || (options.node==2 && options.node2==1);
+        const auto plus=numbered_pair ? 2U : options.node2;
+        const auto minus=numbered_pair ? 1U : options.node;
         std::cout << "双轴镜像同步模式：A 轴节点 " << options.node << "，B 轴节点 " << options.node2
                   << "（一条 " << transport.interface_name()
-                  << " 上两个节点，默认 sync-dir " << options.node2 << " " << options.node
-                  << " = 节点 " << options.node2 << " 取 +、节点 " << options.node << " 取 −）\n";
+                  << " 上两个节点，默认 sync-dir " << plus << " " << minus
+                  << " = 节点 " << plus << " 取 +、节点 " << minus << " 取 −）\n";
+    }
     if (transport.reported_bitrate() && transport.reported_bitrate() != options.bitrate)
         std::cout << "[!] 内核报告的波特率与 --bitrate 不一致；若读不到电机，先核对 "
                      "ip -details link show " << transport.interface_name() << "\n";
@@ -2424,12 +2557,82 @@ int main(int argc, char** argv) {
 
     std::signal(SIGINT, handle_signal);
     std::signal(SIGTERM, handle_signal);
+    if (options.node2 && options.node2 == options.node) {
+        std::cerr << "[失败] 两轴节点号必须不同。\n"; return 2;
+    }
+#ifdef YZ_AIM_USB_DOUBLE
+    std::string error;
+    const std::string label="usb"+std::to_string(options.device)+"/ch"+std::to_string(options.channel);
+    yz_aim::FrameTrace trace(label, options.trace);
+    auto physical=yz_aim::open_lys_can(options.library,options.bitrate,error,
+        options.device,options.channel,options.nominal_timing,&trace);
+    if (!physical) { std::cerr << "[失败] 打开USB-CAN：" << error << "\n"; return 3; }
+    yz_aim::SharedCanBus bus(*physical,static_cast<uint8_t>(options.node),static_cast<uint8_t>(options.node2));
+    auto heartbeat=std::make_shared<yz_aim::SharedHeartbeat>();
+    Motor motor(bus.first(),static_cast<uint8_t>(options.node),heartbeat);
+    g_motor=&motor;
+    Session session{motor,bus.first(),static_cast<uint8_t>(options.node),options.timeout_ms,options.assume_yes,label};
+    session.log_directory=motion_log_directory();
+    session.trace_idle=options.trace;
+    if (options.node2) {
+        session.transport2=&bus.second();
+        session.second=std::make_unique<Motor>(bus.second(),static_cast<uint8_t>(options.node2),heartbeat);
+        session.node2=static_cast<uint8_t>(options.node2);
+    }
+    std::cout << "=== YZ-AIM USB-CAN 双轴镜像工具 " << kVersion << " ===\n"
+              << "适配器 " << options.library << " @ " << label << " " << options.bitrate << " bit/s\n"
+              << "A节点 " << options.node << "，B节点 " << options.node2 << "；extend 默认A负、B正。\n"
+              << "启动只读；sync-enable → sync-zero → extend/retract RPM 毫秒。\n";
+    if (options.trace) std::cout << "CAN TX/RX帧持续输出到stderr；TX仅表示SDK接受，需RX应答确认。\n";
+    const int code=options.command.empty()?run_session(session):run_single_command(session,options.command);
+    g_motor=nullptr;
+    return code;
+#else
 
     const auto node = static_cast<uint8_t>(options.node);
-    SocketCanTransport transport(options.interface_name, node);
+    const auto base_log_directory=motion_log_directory();
+    if(base_log_directory.empty()) {std::cerr << "[失败] 无法定位本程序目录。\n";return 3;}
+    auto log_directory=base_log_directory;
+    if (!options.log_directory.empty()) {
+        std::error_code ec;
+        auto requested=std::filesystem::path(options.log_directory);
+        if (!requested.is_absolute()) requested=base_log_directory/requested;
+        const auto resolved=std::filesystem::weakly_canonical(requested,ec);
+        const auto relative=resolved.lexically_relative(base_log_directory);
+        if (ec || relative.empty() || relative.is_absolute() || *relative.begin()=="..") {
+            std::cerr << "[失败] --log-dir必须位于本程序logs目录内。\n";return 3;
+        }
+        log_directory=resolved;
+    }
+    yz_aim::SessionLock ownership;
+    std::string ownership_error;
+    if(!ownership.acquire(base_log_directory.parent_path()/".runtime",options.interface_name,ownership_error)) {
+        std::cerr << "[失败] " << ownership_error << "\n";return 3;
+    }
+    std::filesystem::path trace_path;
+    int trace_fd=STDERR_FILENO;
+    if(options.trace) {
+        std::error_code ec;
+        std::filesystem::create_directories(log_directory,ec);
+        if(ec) {std::cerr << "[失败] 无法创建通讯日志目录：" << ec.message() << "\n";return 3;}
+        trace_path=log_directory/(options.log_directory.empty()
+            ? "can-frames-"+std::to_string(std::time(nullptr))+"-"+std::to_string(::getpid())+".log"
+            : std::string("can-frames.log"));
+        trace_fd=::open(trace_path.c_str(),O_WRONLY|O_CREAT|O_EXCL|O_APPEND|O_CLOEXEC,0600);
+        if(trace_fd<0) {std::cerr << "[失败] 无法创建通讯日志：" << std::strerror(errno) << "\n";return 3;}
+    }
+    yz_aim::FrameTrace trace(options.interface_name, options.trace,trace_fd);
+    if(trace_fd!=STDERR_FILENO) ::close(trace_fd);
+    SocketCanTransport transport(options.interface_name, node, &trace);
     std::string error;
     if (!transport.open(error)) {
         std::cerr << "[失败] 打开 " << options.interface_name << "：" << error << "\n";
+        return 3;
+    }
+    if (transport.reported_bitrate() && transport.reported_bitrate()!=options.bitrate) {
+        std::cerr << "[失败] CAN0内核波特率=" << transport.reported_bitrate()
+                  << "，命令期望=" << options.bitrate
+                  << "；配置不一致，未发送SDO或运动指令。请先核对接口设置。\n";
         return 3;
     }
     // 每轴一条自己的套接字：接收过滤器只放行本节点的 SDO 应答、TPDO 与心跳，与单轴版一致。
@@ -2442,7 +2645,7 @@ int main(int argc, char** argv) {
                       << "）；两轴必须是设备里已改成不同节点号的两台驱动器。\n";
             return 2;
         }
-        transport2 = std::make_unique<SocketCanTransport>(options.interface_name, node2);
+        transport2 = std::make_unique<SocketCanTransport>(options.interface_name, node2, &trace);
         std::string error2;
         if (!transport2->open(error2)) {
             std::cerr << "[失败] 打开 " << options.interface_name << "（B 轴节点 "
@@ -2451,19 +2654,26 @@ int main(int argc, char** argv) {
         }
     }
     print_banner(options, transport);
+    if (options.trace) std::cout << "通讯详细日志：" << trace_path << "\n"
+        << "控制终端不显示CAN/心跳刷屏。另开终端运行 python3 "
+        << (base_log_directory.parent_path()/"can_monitor.py") << "，每分钟中文汇总、异常即时提示。\n";
 
     auto shared_heartbeat = std::make_shared<yz_aim::SharedHeartbeat>();
     Motor motor(transport, node, shared_heartbeat);
     g_motor = &motor;
 
     Session session{motor, transport, node, options.timeout_ms, options.assume_yes};
-    session.log_directory = motion_log_directory();
+    session.log_directory = log_directory;
+    session.trace_idle=options.trace;
     if (transport2) {
         session.transport2 = transport2.get();
         session.second = std::make_unique<yz_aim::Motor>(*transport2, options.node2, shared_heartbeat);
         session.node2 = static_cast<uint8_t>(options.node2);
+        if ((options.node==1 && options.node2==2) || (options.node==2 && options.node2==1))
+            session.plus_is_a = options.node==2;
     }
     const int code = options.command.empty() ? run_session(session) : run_single_command(session, options.command);
     g_motor = nullptr;
     return code;
+#endif
 }

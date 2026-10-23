@@ -8,6 +8,7 @@
 #undef main
 
 #include <fstream>
+#include <fcntl.h>
 #include <set>
 
 namespace {
@@ -17,6 +18,9 @@ public:
     std::vector<SentAt> timeline;
     std::chrono::milliseconds read_delay{0};
     std::chrono::milliseconds target_ack_delay{0};
+    unsigned drop_start_ack_mask=0, ignore_start_mask=0, wrong_target_mask=0;
+    std::chrono::milliseconds start_ack_delay{0};
+    bool late_start_abort=false;
     unsigned delayed_node = 0;
     uint16_t delayed_object = 0;
     bool delay_only_while_running = false;
@@ -63,6 +67,18 @@ public:
                     first_start=yz_aim::Clock::now();
             }
             if(value==0x100) node[id].output=6;
+            if(value==0xf && static_cast<int32_t>(node[id].registers[0x60ff])!=0) {
+                if(ignore_start_mask&(1U<<id))running[id]=false;
+                else node[id].output=5;
+                if(wrong_target_mask&(1U<<id))node[id].registers[0x60ff]^=0x80000000U;
+                if(replies.size()>previous && ((drop_start_ack_mask&(1U<<id)) || start_ack_delay.count())) {
+                    auto reply=replies.back();replies.pop_back();
+                    if(start_ack_delay.count()) {
+                        if(late_start_abort) {reply.data[0]=0x80;reply.data[4]=0x30;reply.data[5]=0;reply.data[6]=9;reply.data[7]=6;}
+                        delayed.push_back({yz_aim::Clock::now()+start_ack_delay,reply});
+                    }
+                }
+            }
         }
         if(f.data[0]==0x40 && read_delay.count() && id==delayed_node &&
             (!delayed_object || object==delayed_object) &&
@@ -207,6 +223,18 @@ void test_shared_heartbeat_during_slow_other_axis() {
         require(bus.timeline[i].frame.id!=0x77f,"fault does not resume heartbeat and stale motion");
 }
 
+void test_sdo_request_spacing() {
+    RuntimeBus bus;yz_aim::SdoClient client(bus,2);uint32_t value=0;
+    require(static_cast<bool>(client.read(0x6041,0,2,value,after())),"first paced SDO read succeeds");
+    const auto first=yz_aim::Clock::now();
+    require(static_cast<bool>(client.read(0x260e,0,2,value,after())),"second paced SDO read succeeds");
+    require(bus.timeline.back().at-first>=std::chrono::microseconds(9800),"same-node request respects reply recovery gap");
+    const auto count=bus.timeline.size();
+    client.set_hard_deadline(yz_aim::Clock::now()+std::chrono::microseconds(200));
+    require(!client.read(0x6041,0,2,value,after()),"hard motion deadline expires during pacing before transmit");
+    require(bus.timeline.size()==count,"no request emitted after pacing deadline");
+}
+
 void test_50_second_controller_models() {
     for(int direction:{1,-1}) {
         yz_aim::VelocitySynchronizer controller;
@@ -284,7 +312,7 @@ void test_coordinated_cancel_does_not_stop_one_axis_first() {
     require(!heartbeat->cancel_requested.load(),"confirmed group stop clears shared cancellation");
 }
 
-void test_paired_start_does_not_wait_for_first_axis_ack() {
+void test_paired_start_does_not_wait_for_first_axis_ack(unsigned delay_ms=70) {
     RuntimeBus bus;
     bus.integrate_motion=true;
     PortRouter router{bus,{}};
@@ -300,7 +328,7 @@ void test_paired_start_does_not_wait_for_first_axis_ack() {
     require(static_cast<bool>(a.stage_velocity(-30,std::chrono::seconds(1),after())) &&
             static_cast<bool>(session.second->stage_velocity(30,std::chrono::seconds(1),after())),"paired start stages both axes");
     a.set_motion_deadline(after());session.second->set_motion_deadline(after());
-    bus.target_ack_delay=std::chrono::milliseconds(70);
+    bus.target_ack_delay=std::chrono::milliseconds(delay_ms);
     const auto begin=bus.timeline.size();
     require(static_cast<bool>(a.trigger_velocity_pair(*session.second,after())),"paired trigger handles B ACK arriving before delayed A ACK");
     std::vector<yz_aim::Clock::time_point> targets,starts;
@@ -316,7 +344,7 @@ void test_paired_start_does_not_wait_for_first_axis_ack() {
     require(sync_halt_both(session),"paired start test confirms both outputs stopped");
 }
 
-void test_real_cli_loop(bool delayed_read, bool dangerous_step) {
+void test_real_cli_loop(bool delayed_read, bool dangerous_step, bool equal_speed=false) {
     RuntimeBus bus;
     bus.integrate_motion=true;
     bus.inject_step=dangerous_step;
@@ -327,6 +355,14 @@ void test_real_cli_loop(bool delayed_read, bool dangerous_step) {
     session.second=std::make_unique<yz_aim::Motor>(bus,2,heartbeat);
     session.node2=2;
     session.log_directory=motion_log_directory().parent_path()/"test/runtime-logs";
+    if(equal_speed) {
+        command_sync_mode(session,"speed");
+        require(session.equal_speed_test,"explicit speed mode selected");
+        command_sync_mode(session,"invalid");
+        require(session.equal_speed_test,"invalid mode cannot change active selection");
+        require(session.sync_tolerance_deg==0.5 && session.correction_rpm==5,
+                "speed mode preserves position-mode protection settings");
+    }
     command_sync_enable(session);
     require(session.dual_enabled,"real CLI enables both fake drives");
     const auto count=bus.sent.size();
@@ -345,18 +381,29 @@ void test_real_cli_loop(bool delayed_read, bool dangerous_step) {
     require(!session.motion_log && session.stopped_at!=yz_aim::Clock::time_point{},"both stops confirmed and CSV finalized");
     require(session.sync_zero_a==za && session.sync_zero_b==zb,"action never changes fixed zero");
     const auto actual=std::chrono::duration_cast<std::chrono::milliseconds>(session.stop_a_at-session.sync_move_started).count();
-    if(dangerous_step) {
+    if(dangerous_step && !equal_speed) {
         require(bus.step_done && session.end_reason.find("fault:")==0,"permanent dangerous skew still stops the real CLI loop");
         require(actual<duration,"dangerous skew stops before requested duration");
     } else {
         require(session.end_reason=="requested duration elapsed","time boundary is normal completion, not fault");
         require(actual>=duration && actual<duration+60,"SDO wait cannot postpone timed stop by hundreds of milliseconds");
         require(!a.unsafe_latched() && !session.second->unsafe_latched(),"normal end does not poison either motor session");
+        if(equal_speed && dangerous_step) {
+            require(bus.step_done && session.max_error_deg>0.5,"speed test records position mismatch above old guard");
+            for(const auto& f:bus.sent) if((f.id==0x601 || f.id==0x602) && f.data[0]!=0x40 && index_of(f)==0x60ff) {
+                const auto v=static_cast<int32_t>(value_of(f));
+                require(v==0 || v==(f.id==0x601?-30:30),"position mismatch cannot alter equal mirrored speed targets");
+            }
+        }
     }
     require(session.stop_b_at-session.stop_a_at<std::chrono::milliseconds(20),"stop frames go to both axes before waiting for acknowledgements");
     bus.read_delay=std::chrono::milliseconds(0);
-    if(!dangerous_step) {
+    if(!dangerous_step || equal_speed) {
         session.sync_run_active=true;
+        if(equal_speed) {
+            command_sync_mode(session,"position");
+            require(session.equal_speed_test,"active motion refuses mode change");
+        }
         command_sync_zero(session);
         require(session.sync_zero_a==za && session.sync_zero_b==zb,"active motion cannot reset zero");
         session.sync_run_active=false;
@@ -370,18 +417,156 @@ void test_real_cli_loop(bool delayed_read, bool dangerous_step) {
     command_sync_disable(session);
     require(!yz_aim::output_is_enabled(bus.node[1].output) && !yz_aim::output_is_enabled(bus.node[2].output),
             "CLI cleanup disables both fake outputs");
+    if(equal_speed) {
+        command_sync_mode(session,"position");
+        require(!session.equal_speed_test && session.sync_tolerance_deg==0.5,
+                "position mode restores unchanged protection settings");
+    }
+}
+
+void test_missing_start_ack(unsigned mask, bool ignore_start=false, bool wrong_target=false,
+                            bool delayed_abort=false, bool delayed_ack=false) {
+    RuntimeBus bus;bus.integrate_motion=true;PortRouter router{bus,{}};
+    NodePort pa(router,1),pb(router,2);auto beat=std::make_shared<yz_aim::SharedHeartbeat>();
+    yz_aim::Motor a(pa,1,beat);Session session{a,pa,1,3000,true};
+    session.second=std::make_unique<yz_aim::Motor>(pb,2,beat);session.node2=2;
+    std::string why;require(bring_up(bus,a,1,why) && bring_up(bus,*session.second,2,why),"ACK loss fixture enabled");
+    require(static_cast<bool>(a.stage_velocity(-300,std::chrono::seconds(3),after())) &&
+            static_cast<bool>(session.second->stage_velocity(300,std::chrono::seconds(3),after())),"ACK loss fixture staged");
+    bus.drop_start_ack_mask=mask;
+    if(ignore_start)bus.ignore_start_mask=mask;
+    if(wrong_target)bus.wrong_target_mask=mask;
+    if(delayed_abort || delayed_ack) {bus.start_ack_delay=std::chrono::milliseconds(350);bus.late_start_abort=delayed_abort;}
+    const auto until=after(std::chrono::milliseconds(1600));a.set_motion_deadline(until);session.second->set_motion_deadline(until);
+    const auto first=bus.timeline.size();const auto result=a.trigger_velocity_pair(*session.second,until);
+    const bool success=!(ignore_start || wrong_target || delayed_abort);
+    require(static_cast<bool>(result)==success,"missing START ACK accepted only with independently verified running state: "+result.message);
+    unsigned starts=0,targets=0;
+    for(size_t i=first;i<bus.timeline.size();++i) {
+        const auto& frame=bus.timeline[i].frame;
+        if(frame.id!=0x601 && frame.id!=0x602)continue;
+        if(frame.data[0]!=0x40 && index_of(frame)==0x6040 && value_of(frame)==0xf)++starts;
+        if(frame.data[0]!=0x40 && index_of(frame)==0x60ff && static_cast<int32_t>(value_of(frame))!=0)++targets;
+    }
+    require(starts==2 && targets==2,"lost ACK never replays target or START write");
+    if(success) {
+        require(result.context=="paired_start_confirmed_by_readback","readback confirmation is explicitly identified");
+        require(!a.unsafe_latched() && !session.second->unsafe_latched() && !beat->faulted,"verified lost ACK does not poison either session");
+    } else {
+        require(a.unsafe_latched() && session.second->unsafe_latched(),"unproved start locks both axes");
+        require(!a.arm(after()) && !a.update_velocity(-299,after()),"faulted session cannot resume motion");
+    }
+    const auto cleanup_begin=bus.timeline.size();
+    require(sync_halt_both(session),"stop can be freshly confirmed even after ambiguous START write");
+    require(static_cast<bool>(a.disable_output(after())) && static_cast<bool>(session.second->disable_output(after())),"both output disables confirmed after missing ACK");
+    if(!success)for(size_t i=cleanup_begin;i<bus.timeline.size();++i) {
+        const auto& f=bus.timeline[i].frame;
+        require(f.id!=0x77f,"fault cleanup never resumes producer heartbeat");
+        if((f.id==0x601 || f.id==0x602) && f.data[0]!=0x40 && index_of(f)==0x6040)
+            require(value_of(f)==0x100,"fault cleanup only writes operation-clear controlword");
+    }
+}
+
+void test_cli_repeat_after_missing_start_ack() {
+    RuntimeBus bus;bus.integrate_motion=true;PortRouter router{bus,{}};NodePort pa(router,1),pb(router,2);
+    auto beat=std::make_shared<yz_aim::SharedHeartbeat>();yz_aim::Motor a(pa,1,beat);Session session{a,pa,1,3000,true};
+    session.second=std::make_unique<yz_aim::Motor>(pb,2,beat);session.node2=2;
+    session.log_directory=motion_log_directory().parent_path()/"test/runtime-logs";
+    command_sync_mode(session,"speed");command_sync_enable(session);command_sync_zero(session);
+    bus.drop_start_ack_mask=1U<<1;
+    for(bool extend:{true,false,true,false}) {
+        command_sync_extend(session,{"300","1200"},extend);
+        const auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(session.stop_a_at-session.sync_move_started).count();
+        require(session.end_reason=="requested duration elapsed" && ms>=1200 && ms<1260,"repeated missing ACK still honors original motion deadline");
+        require(!a.unsafe_latched() && !session.second->unsafe_latched(),"following commands remain usable after verified START");
+    }
+    command_sync_disable(session);
+}
+
+void test_45_second_cli_with_trace(bool equal_speed_minute=false) {
+    const auto trace_file=motion_log_directory().parent_path()/(equal_speed_minute ? "test/equal-speed-fake-can.log" : "test/long-can-trace.log");
+    const int fd=::open(trace_file.c_str(),O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC,0600);
+    require(fd>=0,"long test diagnostic log opened inside project");
+    yz_aim::FrameTrace trace("long-fake-bus",true,fd);
+    class TracedBus final : public RuntimeBus {
+    public:
+        yz_aim::FrameTrace& trace;
+        explicit TracedBus(yz_aim::FrameTrace& t):trace(t){}
+        bool send(const yz_aim::Frame& frame) override {
+            const bool ok=RuntimeBus::send(frame);trace.frame(ok?"TX":"TX_ERR",frame);return ok;
+        }
+        bool receive(yz_aim::Frame& frame,yz_aim::Deadline until) override {
+            const bool ok=RuntimeBus::receive(frame,until);if(ok)trace.frame("RX",frame);return ok;
+        }
+    } bus(trace);
+    bus.integrate_motion=true;
+    bus.inject_step=equal_speed_minute;
+    PortRouter router{bus};
+    NodePort port_a(router,1),port_b(router,2);
+    auto heartbeat=std::make_shared<yz_aim::SharedHeartbeat>();
+    yz_aim::Motor a(port_a,1,heartbeat);
+    Session session{a,port_a,1,3000,true};
+    session.second=std::make_unique<yz_aim::Motor>(port_b,2,heartbeat);
+    session.node2=2;
+    session.log_directory=motion_log_directory().parent_path()/(equal_speed_minute ? "test/equal-speed-minute-logs" : "test/runtime-logs");
+    if(equal_speed_minute) {
+        std::printf("OFFLINE SIMULATION: real CLI, fake drives only; +/-300RPM, 3 seconds per direction, no physical CAN.\n");
+        command_sync_mode(session,"speed");
+    }
+    command_sync_enable(session);
+    require(session.dual_enabled,"long CLI fake motors enabled");
+    command_sync_zero(session);
+    require(session.sync_zero_valid,"long CLI fixed zero recorded");
+    int64_t actual=0;unsigned actions=0;double maximum_error=0;
+    const auto began=yz_aim::Clock::now();
+    do {
+        for(bool extend : {true,false}) {
+            if(!equal_speed_minute && !extend)break;
+            const int duration=equal_speed_minute?3000:45000;
+            command_sync_extend(session,{"300",std::to_string(duration)},extend);
+            actual=std::chrono::duration_cast<std::chrono::milliseconds>(session.stop_a_at-session.sync_move_started).count();
+            require(session.end_reason=="requested duration elapsed","long real CLI loop completes without false trip");
+            require(actual>=duration && actual<duration+100,"long duration honored at stop-frame boundary");
+            require(session.stop_b_at-session.stop_a_at<std::chrono::milliseconds(20),"long run stops both before ACK wait");
+            require(!equal_speed_minute || (session.target_rpm_a==(extend?-300:300) && session.target_rpm_b==-session.target_rpm_a),"equal-speed long test retains exact mirror targets");
+            maximum_error=std::max(maximum_error,session.max_error_deg);++actions;
+        }
+    }while(equal_speed_minute && yz_aim::Clock::now()-began<std::chrono::seconds(60));
+    if(equal_speed_minute)require(bus.step_done && maximum_error>0.5,"minute test records position offset without changing speed or early stop");
+    else require(session.max_error_deg<0.5,"long run accumulated position error stays below unchanged guard");
+    const auto counts=trace.counts();
+    require(counts.tx>1000 && counts.rx>1000 && counts.tx_error==0,"live tracing exercised throughout actual control loop");
+    command_sync_disable(session);
+    ::close(fd);
+    std::printf("%s CLI with trace PASS: actions=%u wall_seconds=%.3f stop_ms=%lld max_error=%.6f TX=%llu RX=%llu\n",
+        equal_speed_minute?"OFFLINE equal-speed minute":"45s",actions,
+        std::chrono::duration<double>(yz_aim::Clock::now()-began).count(),
+        (long long)actual,maximum_error,(unsigned long long)counts.tx,(unsigned long long)counts.rx);
 }
 } // namespace
 
-int main() {
+int main(int argc,char** argv) {
+    if(argc==2 && std::string(argv[1])=="--long") {test_45_second_cli_with_trace();return 0;}
+    if(argc==2 && std::string(argv[1])=="--equal-speed-minute") {test_45_second_cli_with_trace(true);return 0;}
     test_command_node_change();
+    test_sdo_request_spacing();
     test_shared_heartbeat_during_slow_other_axis();
     test_50_second_controller_models();
     test_coordinated_cancel_does_not_stop_one_axis_first();
     test_paired_start_does_not_wait_for_first_axis_ack();
+    test_paired_start_does_not_wait_for_first_axis_ack(180);
     test_real_cli_loop(false,false);
     test_real_cli_loop(true,false);
     test_real_cli_loop(false,true);
+    test_real_cli_loop(false,true,true);
+    test_missing_start_ack(1U<<1);
+    test_missing_start_ack(1U<<2);
+    test_missing_start_ack((1U<<1)|(1U<<2));
+    test_missing_start_ack(1U<<1,true);
+    test_missing_start_ack(1U<<2,false,true);
+    test_missing_start_ack(1U<<1,false,false,true);
+    test_missing_start_ack(1U<<1,false,false,false,true);
+    test_cli_repeat_after_missing_start_ack();
     std::printf("runtime_test: %d checks passed (offline, no physical CAN)\n",checks);
     return 0;
 }

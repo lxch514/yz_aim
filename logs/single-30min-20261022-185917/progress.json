@@ -1,0 +1,18 @@
+{
+  "cycles": 184,
+  "actions": 369,
+  "elapsed_seconds": 1678.607,
+  "latest": {
+    "command": "extend",
+    "signed_motor_rpm": 100,
+    "requested_ms": 3000,
+    "command_wall_seconds": 3.5545,
+    "still_retries": 0,
+    "first_progress_position": 1318758,
+    "last_progress_position": 1474482,
+    "progress_position_delta": 155724,
+    "measured_speed_min_rpm": 0.0,
+    "measured_speed_max_rpm": 100.0,
+    "confirmed_hold_seconds": 1.0002
+  }
+}

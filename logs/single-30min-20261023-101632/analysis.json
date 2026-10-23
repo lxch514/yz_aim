@@ -1,0 +1,402 @@
+{
+  "directions": {
+    "TX": 2911,
+    "RX": 4950
+  },
+  "frame_types": {
+    "SDO请求": {
+      "TX": 2665
+    },
+    "SDO应答": {
+      "RX": 2665
+    },
+    "其它0x382": {
+      "RX": 544
+    },
+    "其它0x182": {
+      "RX": 544
+    },
+    "TPDO3": {
+      "RX": 544
+    },
+    "TPDO1": {
+      "RX": 544
+    },
+    "主站心跳": {
+      "TX": 246
+    },
+    "其它0x702": {
+      "RX": 55
+    },
+    "节点心跳": {
+      "RX": 54
+    }
+  },
+  "trace_seconds": 54.331886,
+  "objects": {
+    "0x1000:00": {
+      "reads": 27,
+      "writes": 0,
+      "replies": 27,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 27,
+        "min": 1.088,
+        "avg": 1.1004,
+        "p50": 1.099,
+        "p95": 1.1196,
+        "p99": 1.1324,
+        "max": 1.135
+      }
+    },
+    "0x606C:00": {
+      "reads": 658,
+      "writes": 0,
+      "replies": 658,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 658,
+        "min": 1.072,
+        "avg": 1.0995,
+        "p50": 1.096,
+        "p95": 1.103,
+        "p99": 1.111,
+        "max": 3.137
+      }
+    },
+    "0x1018:01": {
+      "reads": 26,
+      "writes": 0,
+      "replies": 26,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 26,
+        "min": 1.078,
+        "avg": 1.0958,
+        "p50": 1.096,
+        "p95": 1.1025,
+        "p99": 1.1038,
+        "max": 1.104
+      }
+    },
+    "0x1018:02": {
+      "reads": 26,
+      "writes": 0,
+      "replies": 26,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 26,
+        "min": 1.087,
+        "avg": 1.0965,
+        "p50": 1.096,
+        "p95": 1.101,
+        "p99": 1.1025,
+        "max": 1.103
+      }
+    },
+    "0x6041:00": {
+      "reads": 607,
+      "writes": 0,
+      "replies": 607,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 607,
+        "min": 0.02,
+        "avg": 1.0999,
+        "p50": 1.098,
+        "p95": 1.1067,
+        "p99": 1.1199,
+        "max": 2.773
+      }
+    },
+    "0x260E:00": {
+      "reads": 608,
+      "writes": 0,
+      "replies": 608,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 608,
+        "min": 0.021,
+        "avg": 1.0952,
+        "p50": 1.095,
+        "p95": 1.103,
+        "p99": 1.1149,
+        "max": 2.489
+      }
+    },
+    "0x2601:00": {
+      "reads": 29,
+      "writes": 2,
+      "replies": 31,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 31,
+        "min": 1.087,
+        "avg": 1.0953,
+        "p50": 1.095,
+        "p95": 1.101,
+        "p99": 1.1055,
+        "max": 1.107
+      }
+    },
+    "0x6064:00": {
+      "reads": 482,
+      "writes": 0,
+      "replies": 482,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 482,
+        "min": 1.061,
+        "avg": 1.0958,
+        "p50": 1.095,
+        "p95": 1.102,
+        "p99": 1.1092,
+        "max": 1.113
+      }
+    },
+    "0x6078:00": {
+      "reads": 26,
+      "writes": 0,
+      "replies": 26,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 26,
+        "min": 0.022,
+        "avg": 1.056,
+        "p50": 1.097,
+        "p95": 1.103,
+        "p99": 1.1037,
+        "max": 1.104
+      }
+    },
+    "0x6079:00": {
+      "reads": 26,
+      "writes": 0,
+      "replies": 26,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 26,
+        "min": 1.094,
+        "avg": 1.0969,
+        "p50": 1.0955,
+        "p95": 1.1055,
+        "p99": 1.106,
+        "max": 1.106
+      }
+    },
+    "0x2612:00": {
+      "reads": 26,
+      "writes": 0,
+      "replies": 26,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 26,
+        "min": 1.094,
+        "avg": 1.0977,
+        "p50": 1.096,
+        "p95": 1.1027,
+        "p99": 1.1075,
+        "max": 1.109
+      }
+    },
+    "0x261E:00": {
+      "reads": 26,
+      "writes": 0,
+      "replies": 26,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 26,
+        "min": 1.093,
+        "avg": 1.0966,
+        "p50": 1.096,
+        "p95": 1.1018,
+        "p99": 1.1035,
+        "max": 1.104
+      }
+    },
+    "0x6040:00": {
+      "reads": 0,
+      "writes": 41,
+      "replies": 41,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 41,
+        "min": 1.094,
+        "avg": 1.1015,
+        "p50": 1.096,
+        "p95": 1.106,
+        "p99": 1.2082,
+        "max": 1.273
+      }
+    },
+    "0x60FF:00": {
+      "reads": 0,
+      "writes": 25,
+      "replies": 25,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 25,
+        "min": 1.094,
+        "avg": 1.0969,
+        "p50": 1.096,
+        "p95": 1.103,
+        "p99": 1.103,
+        "max": 1.103
+      }
+    },
+    "0x607A:00": {
+      "reads": 0,
+      "writes": 1,
+      "replies": 1,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 1,
+        "min": 1.093,
+        "avg": 1.093,
+        "p50": 1.093,
+        "p95": 1.093,
+        "p99": 1.093,
+        "max": 1.093
+      }
+    },
+    "0x1016:01": {
+      "reads": 3,
+      "writes": 2,
+      "replies": 5,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 5,
+        "min": 1.084,
+        "avg": 1.1154,
+        "p50": 1.097,
+        "p95": 1.1818,
+        "p99": 1.1988,
+        "max": 1.203
+      }
+    },
+    "0x6060:00": {
+      "reads": 0,
+      "writes": 12,
+      "replies": 12,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 12,
+        "min": 1.094,
+        "avg": 1.0965,
+        "p50": 1.096,
+        "p95": 1.1003,
+        "p99": 1.1025,
+        "max": 1.103
+      }
+    },
+    "0x6083:00": {
+      "reads": 0,
+      "writes": 12,
+      "replies": 12,
+      "abort": 0,
+      "latency_ms": {
+        "samples": 12,
+        "min": 0.023,
+        "avg": 1.0068,
+        "p50": 1.0955,
+        "p95": 1.101,
+        "p99": 1.101,
+        "max": 1.101
+      }
+    }
+  },
+  "latency_ms": {
+    "samples": 2665,
+    "min": 0.02,
+    "avg": 1.097,
+    "p50": 1.096,
+    "p95": 1.104,
+    "p99": 1.114,
+    "max": 3.137
+  },
+  "heartbeat_interval_ms": {
+    "samples": 245,
+    "min": 26.741,
+    "avg": 220.5669,
+    "p50": 239.983,
+    "p95": 242.3758,
+    "p99": 261.1046,
+    "max": 266.995
+  },
+  "speed_min_rpm": -100.5,
+  "speed_max_rpm": 101.2,
+  "position_min": 85502,
+  "position_max": 248287,
+  "position_first": 248257,
+  "position_last": 248175,
+  "net_position_change": -82,
+  "kernel_drop_increment": 0,
+  "driver_samples": [
+    {
+      "line": 7864,
+      "TX": 2911,
+      "RX": 4950,
+      "TX_ERR": 0,
+      "KERNEL_RX_DROP": 0,
+      "TRACE_DROP": 0,
+      "OUTPUT_DROP": 0
+    }
+  ],
+  "events": [],
+  "unmatched_responses": [],
+  "pending_requests": [],
+  "duplicate_requests": [],
+  "requests_without_unique_reply": 0,
+  "alarm_counts": {
+    "0x0020": 4,
+    "0x0000": 604
+  },
+  "nonzero_alarms": [
+    {
+      "seconds": 0.345406,
+      "value": 32
+    },
+    {
+      "seconds": 0.374342,
+      "value": 32
+    },
+    {
+      "seconds": 0.398214,
+      "value": 32
+    },
+    {
+      "seconds": 0.407782,
+      "value": 32
+    }
+  ],
+  "last_alarm": {
+    "seconds": 54.541139,
+    "value": 0
+  },
+  "motion": {
+    "completed_actions": 12,
+    "forward_count": 6,
+    "reverse_count": 6,
+    "position_direction_observed_actions": 12,
+    "speed_direction_observed_actions": 12,
+    "still_gate_retries": 0,
+    "action_wall_seconds": {
+      "samples": 12,
+      "min": 3.4081,
+      "avg": 3.4793,
+      "p50": 3.4855,
+      "p95": 3.5218,
+      "p99": 3.5224,
+      "max": 3.5225
+    },
+    "confirmed_forward_hold_seconds": {
+      "samples": 5,
+      "min": 1.0001,
+      "avg": 1.0001,
+      "p50": 1.0001,
+      "p95": 1.0002,
+      "p99": 1.0002,
+      "max": 1.0002
+    }
+  }
+}

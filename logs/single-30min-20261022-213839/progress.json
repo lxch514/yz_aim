@@ -1,0 +1,18 @@
+{
+  "cycles": 275,
+  "actions": 552,
+  "elapsed_seconds": 3603.744,
+  "latest": {
+    "command": "retract",
+    "signed_motor_rpm": -100,
+    "requested_ms": 3000,
+    "command_wall_seconds": 3.4504,
+    "still_retries": 0,
+    "first_progress_position": 1702690,
+    "last_progress_position": 1547179,
+    "progress_position_delta": -155511,
+    "measured_speed_min_rpm": -100.3,
+    "measured_speed_max_rpm": 0.0,
+    "confirmed_hold_seconds": 3.0001
+  }
+}

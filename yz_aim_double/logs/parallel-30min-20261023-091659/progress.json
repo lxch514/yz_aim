@@ -1,0 +1,20 @@
+{
+  "cycles": 147,
+  "actions": 296,
+  "elapsed_seconds": 1343.709,
+  "latest": {
+    "csv": "/root/yz_aim_double/logs/parallel-30min-20261023-091659/motion-20261023-093921-43634-52937515310506.csv",
+    "samples": 32,
+    "nominal_rpm": -100,
+    "start_confirmation": "acknowledged",
+    "stop_request_a_ms": 3000,
+    "stop_request_b_ms": 3000,
+    "end_reason": "requested duration elapsed",
+    "max_trim_rpm": 0,
+    "trim_matches_request": true,
+    "maximum_recorded_position_error_deg": 0.277,
+    "command": "retract",
+    "wall_seconds": 3.348,
+    "still_retries": 0
+  }
+}

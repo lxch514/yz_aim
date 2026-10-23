@@ -98,6 +98,10 @@ Result SdoClient::read(uint16_t index, uint8_t subindex, uint8_t width,
 }
 Result SdoClient::write(uint16_t index, uint8_t subindex, uint8_t width,
                         uint32_t value, Deadline deadline) {
+    if (stop_only_ && !((index==0x6040 && subindex==0 && width==2 && value==0x0100) ||
+                       (index==0x2601 && subindex==0 && width==2 && value==0) ||
+                       (index==0x1016 && subindex==1 && width==4)))
+        return error(Error::unsafe,"fault cleanup permits only stop, disable and consumer restoration");
     if (width != 1 && width != 2 && width != 4)
         return sdo_failure(error(Error::invalid_argument, "SDO width must be 1, 2 or 4"),
                            false, index, subindex, "prequeue", Clock::now(), deadline);
@@ -111,12 +115,14 @@ Result SdoClient::write(uint16_t index, uint8_t subindex, uint8_t width,
     return exchange(frame, index, subindex, width, nullptr, deadline);
 }
 Result SdoClient::write_pair(SdoClient& other, uint16_t index, uint8_t width,
-                             uint32_t value, uint32_t other_value, Deadline deadline) {
+                             uint32_t value, uint32_t other_value, Deadline deadline,
+                             const std::function<Result(Deadline)>& verify_velocity_start) {
+    if (stop_only_ || other.stop_only_) return error(Error::unsafe,"paired motion is forbidden during fault cleanup");
     if (&other == this || node_ == other.node_ || (width != 2 && width != 4) ||
         (width == 2 && (value > 0xffff || other_value > 0xffff)))
         return error(Error::invalid_argument, "invalid paired SDO write");
-    deadline = std::min({deadline, hard_deadline_, other.hard_deadline_,
-                         Clock::now()+std::chrono::milliseconds(120)});
+    const auto full_deadline=std::min({deadline,hard_deadline_,other.hard_deadline_});
+    deadline=std::min(full_deadline,Clock::now()+std::chrono::milliseconds(300));
     auto frame = [index, width](uint8_t node, uint32_t v) {
         Frame f{static_cast<uint16_t>(0x600+node),8,{static_cast<uint8_t>(width==2 ? 0x2b : 0x23),
             static_cast<uint8_t>(index),static_cast<uint8_t>(index>>8),0,0,0,0,0}};
@@ -136,11 +142,49 @@ Result SdoClient::write_pair(SdoClient& other, uint16_t index, uint8_t width,
     if(!transport_.send(a)) { poisoned_=true; return error(Error::transport,"paired A send failed"); }
     other.transmitted_at_=Clock::now();
     if(!other.transport_.send(b)) { other.poisoned_=true; return error(Error::transport,"paired B send failed"); }
-    r=exchange(a,index,0,width,nullptr,deadline,ExchangePhase::already_sent);
-    if(!r) { other.poisoned_=true; r.message="paired A: "+r.message; return r; }
-    r=other.exchange(b,index,0,width,nullptr,deadline,ExchangePhase::already_sent);
-    if(!r) r.message="paired B: "+r.message;
-    return r;
+    bool acknowledged[2]={false,false};SdoClient* clients[2]={this,&other};
+    auto fail_pair=[&](Result failure) {poisoned_=other.poisoned_=true;return failure;};
+    const auto began=Clock::now();
+    // Poll both independent receive queues. Waiting exclusively on A used to
+    // hide B's ACK and telemetry for the entire A timeout window.
+    while(Clock::now()<deadline && (!acknowledged[0] || !acknowledged[1])) {
+        for(unsigned axis=0;axis<2;++axis) {
+            auto& client=*clients[axis];if(acknowledged[axis])continue;
+            if(client.service_) {auto service=client.service_(deadline);if(!service)return fail_pair(service);}
+            Frame reply;
+            if(!client.transport_.receive(reply,std::min(deadline,Clock::now()+std::chrono::milliseconds(2)))) {
+                if(client.transport_.failed())return fail_pair(error(Error::transport,"paired receive failed"));
+                continue;
+            }
+            if(reply.id!=0x580+client.node_ || reply.dlc<4 ||
+               reply.data[1]!=static_cast<uint8_t>(index) || reply.data[2]!=static_cast<uint8_t>(index>>8) || reply.data[3]!=0)continue;
+            if(reply.dlc!=8)return fail_pair(error(Error::malformed_reply,"paired SDO DLC must be 8"));
+            if(reply.data[0]==0x80) {
+                uint32_t abort=0;for(unsigned i=0;i<4;++i)abort|=uint32_t(reply.data[4+i])<<(8*i);
+                return fail_pair(error(Error::abort_reply,"paired SDO abort",abort));
+            }
+            if(reply.data[0]!=0x60 || reply.data[4] || reply.data[5] || reply.data[6] || reply.data[7])
+                return fail_pair(error(Error::malformed_reply,"invalid paired download acknowledgement"));
+            client.last_reply_at_=Clock::now();acknowledged[axis]=true;
+        }
+    }
+    if(acknowledged[0] && acknowledged[1])return {};
+    // Only a velocity-mode START may be verified by fresh, typed readbacks.
+    // No startup/control write is retransmitted, and the motion deadline stays fixed.
+    if(verify_velocity_start && index==0x6040 && width==2 && value==0xf && other_value==0xf && Clock::now()<full_deadline) {
+        const auto old_a=hard_deadline_,old_b=other.hard_deadline_;
+        const auto verify_until=std::min(full_deadline,Clock::now()+std::chrono::milliseconds(500));
+        hard_deadline_=other.hard_deadline_=verify_until;
+        observe_start_abort_=other.observe_start_abort_=true;
+        auto verified=verify_velocity_start(verify_until);
+        observe_start_abort_=other.observe_start_abort_=false;
+        hard_deadline_=old_a;other.hard_deadline_=old_b;
+        if(verified) {Result success{};success.context="paired_start_confirmed_by_readback";return success;}
+        verified.message="paired start ACK missing; state verification failed: "+verified.message;
+        return fail_pair(verified);
+    }
+    return fail_pair(sdo_failure(error(Error::timeout,acknowledged[0]?"paired B acknowledgement missing":"paired A acknowledgement missing"),
+                                false,index,0,"paired_reply",began,deadline));
 }
 Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subindex,
                            uint8_t width, uint32_t* value, Deadline deadline, ExchangePhase phase) {
@@ -149,6 +193,12 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
     const bool is_read = value != nullptr;
     auto failed = [&](Result r, const char* phase) {
         return sdo_failure(std::move(r), is_read, index, subindex, phase, started, deadline);
+    };
+    auto late_start_abort=[&](const Frame& frame) -> Result {
+        if(!observe_start_abort_ || frame.id!=0x580+node_ || frame.dlc!=8 || frame.data[0]!=0x80 ||
+           frame.data[1]!=0x40 || frame.data[2]!=0x60 || frame.data[3]!=0)return {};
+        uint32_t code=0;for(unsigned i=0;i<4;++i)code|=uint32_t(frame.data[4+i])<<(8*i);
+        return error(Error::abort_reply,"late START abort during readback verification",code);
     };
     if (Clock::now() >= hard_deadline_) {
         if (phase == ExchangePhase::already_sent) {
@@ -160,6 +210,18 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
     if (node_ < 1 || node_ > 127) return failed(error(Error::invalid_argument, "invalid CANopen node"), "prequeue");
     if (poisoned_) return failed(error(Error::unsafe, "ambiguous SDO session; reconnect transport"), "prequeue");
     if (phase != ExchangePhase::already_sent) {
+        // Two drives expose very short response-to-next-request bursts during
+        // startup/status sweeps. Keep a 10ms per-node recovery gap. Emergency
+        // paired stop frames bypass SDO exchange; paired starts still send
+        // back-to-back after both clients have prepared.
+        const auto ready_at=last_reply_at_+std::chrono::milliseconds(10);
+        if (Clock::now()<ready_at) {
+            if (service_) { Result r=service_(deadline);if(!r)return r; }
+            std::this_thread::sleep_until(std::min(deadline,ready_at));
+            if (Clock::now()>=deadline)
+                return failed(error(Clock::now()>=hard_deadline_ ? Error::cancelled : Error::timeout,
+                                    "SDO deadline reached during request spacing"),"pacing");
+        }
         // Drain all queued frames, including any stale ACK buried behind periodic PDOs.
         // At the observed ~20 PDO/s a 30-second confirmation can queue hundreds of
         // frames. Both time and frame bounds prevent a continuously flooded bus from
@@ -176,6 +238,7 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
                 drained_to_empty = Clock::now() < drain_until;
                 break;
             }
+            auto abort=late_start_abort(queued);if(!abort)return failed(abort,"start_abort");
         }
         if (Clock::now() >= hard_deadline_)
             return failed(error(Error::cancelled, "timed motion elapsed"), "prequeue");
@@ -202,11 +265,13 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
             break;
         }
         ++seen;
+        auto abort=late_start_abort(reply);if(!abort)return failed(abort,"start_abort");
         if (reply.id != 0x580 + node_ &&
             !(reply_node_alt_ && reply.id == 0x580 + reply_node_alt_)) continue;
         if (reply.dlc < 4) { poisoned_ = true; return failed(error(Error::malformed_reply, "truncated SDO reply"), "reply"); }
         if (reply.data[1] != static_cast<uint8_t>(index) ||
             reply.data[2] != static_cast<uint8_t>(index >> 8) || reply.data[3] != subindex) continue;
+        last_reply_at_=Clock::now();
         if (reply.dlc != 8) { poisoned_ = true; return failed(error(Error::malformed_reply, "SDO DLC must be 8"), "reply"); }
         if (reply.data[0] == 0x80) {
             const uint32_t code = static_cast<uint32_t>(reply.data[4]) |
@@ -247,6 +312,7 @@ Motor::Motor(Transport& transport, uint8_t node, std::shared_ptr<SharedHeartbeat
       heartbeat_(heartbeat ? std::move(heartbeat) : std::make_shared<SharedHeartbeat>()) {
     if (node < 1 || node > 127) throw std::invalid_argument("YZ-AIM node must be 1..127");
     sdo_.set_service([this](Deadline deadline) -> Result {
+        if(sdo_.stop_only_)return {}; // never restart a faulted heartbeat while confirming cleanup
         if (coordinated_motion_ && (cancel_requested_.load() || heartbeat_->cancel_requested.load()))
             return error(Error::cancelled, "operator cancelled timed motion");
         return service_watchdog(deadline);
@@ -511,6 +577,9 @@ Result Motor::stop(Deadline deadline) {
     velocity_running_ = false;
     sustaining_ = false;
     staged_ = false;
+    if(unsafe_ && (control_attempted_ || output_enabled_ || consumer_overridden_)) {
+        sdo_.enter_stop_only();operation_clear_attempted_=true;
+    }
     if (!control_attempted_) {
         // A previous, acknowledged motion hold releases control ownership, but
         // explicit output enable may remain in effect. Refresh old observations
@@ -1177,6 +1246,7 @@ Result Motor::stage_velocity(int32_t rpm, std::chrono::milliseconds travel, Dead
     staged_ = true;
     staged_velocity_ = true;
     velocity_running_ = false;
+    velocity_triggered_at_ = {}; // a failed new trigger must not report the previous move timestamp
     staged_rpm_ = rpm;
     staged_target_ = 0;
     last_.commanded_speed_rpm = static_cast<uint32_t>(magnitude);
@@ -1213,10 +1283,29 @@ Result Motor::trigger_velocity_pair(Motor& other, Deadline deadline) {
     }
     velocity_triggered_at_=sdo_.last_transmitted_at();
     other.velocity_triggered_at_=other.sdo_.last_transmitted_at();
-    r=sdo_.write_pair(other.sdo_,0x6040,2,0x000f,0x000f,deadline);
+    auto verify_start=[&](Deadline until) -> Result {
+        for(auto* axis : {this,&other}) {
+            uint32_t mode=0,target=0,status=0,alarm=0,output=0,speed=0;
+            auto read=[&](uint16_t object,uint8_t bytes,uint32_t& out) {
+                return axis->sdo_.read(object,0,bytes,out,bounded(until));
+            };
+            Result proof;
+            if(!(proof=read(0x6060,1,mode)) || !(proof=read(0x60ff,4,target)) ||
+               !(proof=read(0x6041,2,status)) || !(proof=read(0x260e,2,alarm)) ||
+               !(proof=read(0x2601,2,output)) || !(proof=read(0x606c,2,speed)))return proof;
+            const double rpm=static_cast<int16_t>(speed)/10.0;
+            if(mode!=3 || static_cast<int32_t>(target)!=axis->staged_rpm_ || (status&7)!=7 ||
+               (status&(0xc000|8)) || alarm || !output_is_enabled(static_cast<uint16_t>(output)) ||
+               rpm*axis->staged_rpm_<=0 || std::abs(rpm)<=0.5 ||
+               std::abs(rpm)>std::abs(axis->staged_rpm_)+std::max(10.0,std::abs(axis->staged_rpm_)*0.1))
+                return error(Error::unsafe,"fresh mode/target/status/alarm/output/speed do not prove requested velocity start");
+        }
+        return {};
+    };
+    r=sdo_.write_pair(other.sdo_,0x6040,2,0x000f,0x000f,deadline,verify_start);
     if(!r) { (void)other.fail(r,deadline); return fail(r,deadline); }
     velocity_running_=other.velocity_running_=true;
-    return {};
+    return r;
 }
 Result Motor::update_velocity(int32_t rpm, Deadline deadline) {
     if (!velocity_running_ || !output_enabled_ || unsafe_ || !rpm ||

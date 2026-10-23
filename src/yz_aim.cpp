@@ -55,11 +55,10 @@ Result output_revolutions_to_pulses(double revolutions, int32_t& raw_pulses) {
     return {};
 }
 
-SdoClient::SdoClient(Transport& transport, uint8_t node) : transport_(transport), node_(node) {}
-
-void SdoClient::accept_reply_from(uint8_t primary, uint8_t alternate) {
-    reply_node_ = primary;
-    reply_node_alt_ = alternate;
+SdoClient::SdoClient(Transport& transport, uint8_t node, SdoReplyTimeouts timeouts)
+    : transport_(transport), node_(node), timeouts_(timeouts) {
+    if (timeouts.read.count() < 0 || timeouts.write.count() < 0)
+        throw std::invalid_argument("SDO reply timeouts must be nonnegative");
 }
 
 Result SdoClient::read(uint16_t index, uint8_t subindex, uint8_t width,
@@ -89,8 +88,12 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
                            uint8_t width, uint32_t* value, Deadline deadline) {
     const auto started = Clock::now();
     const bool is_read = value != nullptr;
+    const auto reply_limit = is_read ? timeouts_.read : timeouts_.write;
     auto failed = [&](Result r, const char* phase) {
-        return sdo_failure(std::move(r), is_read, index, subindex, phase, started, deadline);
+        r = sdo_failure(std::move(r), is_read, index, subindex, phase, started, deadline);
+        if (reply_limit.count() > 0)
+            r.context += " reply_timeout_ms=" + std::to_string(reply_limit.count());
+        return r;
     };
     if (node_ < 1 || node_ > 127) return failed(error(Error::invalid_argument, "invalid CANopen node"), "prequeue");
     if (poisoned_) return failed(error(Error::unsafe, "ambiguous SDO session; reconnect transport"), "prequeue");
@@ -116,6 +119,10 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
     }
     if (Clock::now() >= deadline) return failed(error(Error::timeout, "SDO deadline expired before send"), "send");
     if (!transport_.send(request)) { poisoned_ = true; return failed(error(Error::transport, "CAN send failed"), "send"); }
+    // Keep prequeue/SDK-send time separate from the configured reply window.
+    // This extra cap never extends the enclosing action/transaction deadline.
+    if (reply_limit.count() > 0)
+        deadline = std::min(deadline, Clock::now() + reply_limit);
     // Ignore unrelated traffic, including other SDO objects, with both time and frame bounds.
     for (unsigned seen = 0; seen < 128 && Clock::now() < deadline; ++seen) {
         Frame reply;
@@ -124,8 +131,7 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
             if (Clock::now() < deadline) continue;
             break;
         }
-        const uint8_t expect = reply_node_ ? reply_node_ : node_;
-        if (reply.id != 0x580 + expect && !(reply_node_alt_ && reply.id == 0x580 + reply_node_alt_)) continue;
+        if (reply.id != 0x580 + node_) continue;
         if (reply.dlc < 4) { poisoned_ = true; return failed(error(Error::malformed_reply, "truncated SDO reply"), "reply"); }
         if (reply.data[1] != static_cast<uint8_t>(index) ||
             reply.data[2] != static_cast<uint8_t>(index >> 8) || reply.data[3] != subindex) continue;
@@ -157,8 +163,8 @@ Result SdoClient::exchange(const Frame& request, uint16_t index, uint8_t subinde
     return failed(error(Error::timeout, "SDO reply timed out or receive limit exhausted; reconnect"), "reply");
 }
 
-Motor::Motor(Transport& transport, uint8_t node)
-    : transport_(transport), sdo_(transport, node), node_(node) {
+Motor::Motor(Transport& transport, uint8_t node, SdoReplyTimeouts timeouts)
+    : transport_(transport), sdo_(transport, node, timeouts), node_(node) {
     if (node < 1 || node > 127) throw std::invalid_argument("YZ-AIM node must be 1..127");
 }
 Motor::~Motor() = default;
@@ -372,7 +378,6 @@ Result Motor::fail(Result result, Deadline /*deadline*/) {
         (void)transport_.send(emergency);
     }
     watchdog_started_ = false;
-    sustaining_ = false;
     return result;
 }
 Result Motor::write(uint16_t index, uint8_t subindex, uint8_t width,
@@ -394,7 +399,6 @@ Result Motor::arm(Deadline deadline) {
     return {};
 }
 Result Motor::stop(Deadline deadline) {
-    sustaining_ = false;
     if (!control_attempted_) {
         // A previous, acknowledged motion hold releases control ownership, but
         // explicit output enable may remain in effect. Refresh old observations
@@ -768,19 +772,12 @@ Result Motor::move_absolute(int32_t target_pulses, Deadline deadline, uint32_t p
     last_.commanded_speed_rpm = profile_rpm;
     return watch_motion(deadline, target_pulses, progress);
 }
-// jog 与 spin 共用同一套速度模式时序与看护逻辑，只有时长上限和提示语不同。
-Result Motor::run_velocity(int32_t rpm, std::chrono::milliseconds duration, bool continuous,
-                           Deadline deadline, const ProgressCallback& progress) {
+Result Motor::jog(int32_t rpm, std::chrono::milliseconds duration, Deadline deadline,
+                  const ProgressCallback& progress) {
     const auto started = Clock::now();
-    const auto duration_cap = continuous ? std::chrono::seconds(600) : std::chrono::seconds(5);
-    auto label = [continuous](Error code, const char* jog_text, const char* spin_text) {
-        return error(code, continuous ? spin_text : jog_text);
-    };
     if (!rpm || rpm < -kMaxMotorRpm || rpm > kMaxMotorRpm ||
-        duration.count() <= 0 || duration > duration_cap || deadline <= started)
-        return label(Error::invalid_argument,
-                     "jog: abs speed 1..3000 RPM, 1..5000ms, future deadline",
-                     "spin: abs speed 1..3000 RPM, 1..600000ms, future deadline");
+        duration.count() <= 0 || duration > std::chrono::seconds(5) || deadline <= started)
+        return error(Error::invalid_argument, "jog: abs speed 1..3000 RPM, 1..5000ms, future deadline");
     deadline = std::min(deadline, started + jog_action_budget(duration));
     if (node_ == 127) return error(Error::invalid_argument, "node 127 collides with own watchdog producer");
     if (!armed_ || !output_enabled_ || unsafe_) return error(Error::unsafe, "output and explicit arm required");
@@ -796,9 +793,7 @@ Result Motor::run_velocity(int32_t rpm, std::chrono::milliseconds duration, bool
         (rpm < 0 ? -maximum_travel : maximum_travel);
     if (last_.position_pulses < kMinPositionPulses || last_.position_pulses > kMaxPositionPulses ||
         endpoint < kMinPositionPulses || endpoint > kMaxPositionPulses)
-        return label(Error::invalid_argument,
-                     "jog travel and stopping distance exceed manual motor-position range",
-                     "spin travel and stopping distance exceed manual motor-position range");
+        return error(Error::invalid_argument, "jog travel and stopping distance exceed manual motor-position range");
     control_attempted_ = true;
     if (!(r = write(0x6040, 0, 2, 0x010f, deadline))) return r;
     if (!(r = start_watchdog(deadline))) return r;
@@ -844,15 +839,15 @@ Result Motor::run_velocity(int32_t rpm, std::chrono::milliseconds duration, bool
         }
         sample.statusword = load16(status);
         if ((status & (1U << 3)) || (status & 0xc000))
-            return failed_sample(label((status & 0xc000) ? Error::limit : Error::alarm,
-                                       "jog status fault/limit", "spin status fault/limit"));
+            return failed_sample(error((status & 0xc000) ? Error::limit : Error::alarm,
+                                       "jog status fault/limit"));
         r = read(0x260e, 2, alarm, sample.alarm_sample);
         if (!r) {
             if (r.error == Error::cancelled) { sample.result = r; (void)publish_progress(progress, sample); return r; }
             return failed_sample(r, &sample.alarm_sample);
         }
         sample.alarm_code = load16(alarm);
-        if (alarm) return failed_sample(label(Error::alarm, "jog alarm", "spin alarm"));
+        if (alarm) return failed_sample(error(Error::alarm, "jog alarm"));
         r = read(0x606c, 2, speed, sample.speed_sample);
         if (!r) {
             if (r.error == Error::cancelled) { sample.result = r; (void)publish_progress(progress, sample); return r; }
@@ -861,8 +856,7 @@ Result Motor::run_velocity(int32_t rpm, std::chrono::milliseconds duration, bool
         sample.speed_rpm = static_cast<int16_t>(speed) / 10.0;
         sample.output_speed_rpm = motor_to_output_rpm(sample.speed_rpm);
         if (std::abs(sample.speed_rpm) > kMaxMotorRpm)
-            return failed_sample(label(Error::unsafe, "jog speed exceeds manual maximum",
-                                       "spin speed exceeds manual maximum"));
+            return failed_sample(error(Error::unsafe, "jog speed exceeds manual maximum"));
         r = read(0x6064, 4, position, sample.position_sample);
         if (!r) {
             if (r.error == Error::cancelled) { sample.result = r; (void)publish_progress(progress, sample); return r; }
@@ -871,9 +865,7 @@ Result Motor::run_velocity(int32_t rpm, std::chrono::milliseconds duration, bool
         sample.position_pulses = static_cast<int32_t>(position);
         sample.output_position_degrees = pulses_to_output_degrees(sample.position_pulses);
         if (sample.position_pulses < kMinPositionPulses || sample.position_pulses > kMaxPositionPulses)
-            return failed_sample(label(Error::limit,
-                                       "jog actual position exceeds manual motor-position range",
-                                       "spin actual position exceeds manual motor-position range"));
+            return failed_sample(error(Error::limit, "jog actual position exceeds manual motor-position range"));
         sample.result = {};
         if (!(r = publish_progress(progress, sample))) return r;
         std::this_thread::sleep_until(std::min(finish,
@@ -884,120 +876,20 @@ Result Motor::run_velocity(int32_t rpm, std::chrono::milliseconds duration, bool
     (void)publish_progress(progress, sample);
     return r;
 }
-
-// 常转启动：下发速度模式设定点后立即返回，不进入等待循环。
-Result Motor::start_velocity(int32_t rpm, Deadline deadline, const ProgressCallback& progress) {
-    if (!rpm || rpm < -kMaxMotorRpm || rpm > kMaxMotorRpm || deadline <= Clock::now())
-        return error(Error::invalid_argument, "run: abs speed 1..3000 RPM, future deadline");
-    if (node_ == 127) return error(Error::invalid_argument, "node 127 collides with own watchdog producer");
-    if (!armed_ || !output_enabled_ || unsafe_) return error(Error::unsafe, "output and explicit arm required");
-    if (sustaining_) return error(Error::unsafe, "a sustained run is already active; stop it first");
-    Result r = require_stationary(deadline, false);
-    if (!r) return r;
-    // 常转没有终点，无法预估全程行程；改为要求运行方向上至少留出一分钟行程，
-    // 这样即使现场无人看管，也来得及执行 stop。一分钟行程 = 转速(rpm) × 每圈脉冲。
-    const int64_t magnitude = rpm < 0 ? -static_cast<int64_t>(rpm) : rpm;
-    const int64_t one_minute = magnitude * kMotorPulsesPerRevolution;
-    const int64_t remaining = rpm < 0
-        ? static_cast<int64_t>(last_.position_pulses) - kMinPositionPulses
-        : static_cast<int64_t>(kMaxPositionPulses) - last_.position_pulses;
-    if (remaining < one_minute)
-        return error(Error::invalid_argument, "run: less than one minute of travel left in that direction");
-    control_attempted_ = true;
-    if (!(r = write(0x6040, 0, 2, 0x010f, deadline))) return r;
-    if (!(r = start_watchdog(deadline))) return r;
-    if (!(r = write(0x60ff, 0, 4, 0, deadline))) return r;
-    if (!(r = write(0x6060, 0, 1, 3, deadline))) return r;
-    if (!(r = write(0x6083, 0, 4, 500, deadline))) return r;
-    if (!(r = write(0x60ff, 0, 4, static_cast<uint32_t>(rpm), deadline))) return r;
-    if (!(r = heartbeat(deadline))) return r;
-    if (!(r = write(0x6040, 0, 2, 0x000f, deadline))) return r;
-    sustaining_ = true;
-    sustain_rpm_ = rpm;
-    Snapshot sample = last_;
-    sample.target_position_valid = false;
-    sample.commanded_speed_rpm = static_cast<uint32_t>(magnitude);
-    sample.result = {};
-    return publish_progress(progress, sample);
-}
-// 常转看护：与 jog/spin 循环内完全相同的四条检查，读失败即视为失去安全观察。
-Result Motor::sustain_service(Deadline deadline, const ProgressCallback& progress) {
-    if (!sustaining_) return {};
-    Snapshot sample = last_;
-    sample.target_position_valid = false;
-    sample.commanded_speed_rpm = static_cast<uint32_t>(sustain_rpm_ < 0 ? -sustain_rpm_ : sustain_rpm_);
-    auto failed_sample = [&](Result cause, Reading* reading = nullptr) -> Result {
-        if (reading) *reading = {};
-        Result first = fail(cause, deadline);
-        sample.result = first;
-        (void)publish_progress(progress, sample);
-        return first;
-    };
-    if (cancel_requested_.load()) {
-        Result cancelled = cancel_motion(deadline);
-        sample.result = cancelled;
-        (void)publish_progress(progress, sample);
-        return cancelled;
-    }
-    uint32_t status = 0, alarm = 0, speed = 0, position = 0;
-    Result r = {};
-    auto read = [&](uint16_t object, uint8_t width, uint32_t& value, Reading& reading) -> Result {
-        Result observed = sdo_.read(object, 0, width, value, bounded(deadline, std::chrono::milliseconds(100)));
-        if (observed) reading = {true, Clock::now()};
-        return observed;
-    };
-    if (!(r = read(0x6041, 2, status, sample.status_sample))) return failed_sample(r, &sample.status_sample);
-    sample.statusword = load16(status);
-    if ((status & (1U << 3)) || (status & 0xc000))
-        return failed_sample(error((status & 0xc000) ? Error::limit : Error::alarm, "run status fault/limit"));
-    if (!(r = read(0x260e, 2, alarm, sample.alarm_sample))) return failed_sample(r, &sample.alarm_sample);
-    sample.alarm_code = load16(alarm);
-    if (alarm) return failed_sample(error(Error::alarm, "run alarm"));
-    if (!(r = read(0x606c, 2, speed, sample.speed_sample))) return failed_sample(r, &sample.speed_sample);
-    sample.speed_rpm = static_cast<int16_t>(speed) / 10.0;
-    sample.output_speed_rpm = motor_to_output_rpm(sample.speed_rpm);
-    if (sample.speed_rpm < -kMaxMotorRpm || sample.speed_rpm > kMaxMotorRpm)
-        return failed_sample(error(Error::unsafe, "run speed exceeds manual maximum"));
-    if (!(r = read(0x6064, 4, position, sample.position_sample))) return failed_sample(r, &sample.position_sample);
-    sample.position_pulses = static_cast<int32_t>(position);
-    sample.output_position_degrees = pulses_to_output_degrees(sample.position_pulses);
-    if (sample.position_pulses < kMinPositionPulses || sample.position_pulses > kMaxPositionPulses)
-        return failed_sample(error(Error::limit, "run actual position exceeds manual motor-position range"));
-    sample.result = {};
-    return publish_progress(progress, sample);
-}
-
-Result Motor::jog(int32_t rpm, std::chrono::milliseconds duration, Deadline deadline,
-                  const ProgressCallback& progress) {
-    return run_velocity(rpm, duration, false, deadline, progress);
-}
-
-Result Motor::spin(int32_t rpm, std::chrono::milliseconds duration, Deadline deadline,
-                   const ProgressCallback& progress) {
-    return run_velocity(rpm, duration, true, deadline, progress);
-}
 Result Motor::stage_node_id(uint8_t new_node, Deadline deadline) {
     if (new_node < 1 || new_node > 127 || new_node == node_) return error(Error::invalid_argument, "node must change to 1..127");
-    // 调用方已先停止并失能输出；心跳丢失（0x20）与改地址无关，这里容忍它，其它报警仍然拒绝。
-    Result r = require_stationary(deadline, true, true);
+    Result r = require_stationary(deadline, true);
     if (!r) return r;
-    // 驱动器一收到 0x2615 就改用新节点号发应答，而请求 COB-ID 要断电重新上电才更新：
-    // 之后请求仍发 0x600+旧节点，应答可能来自旧或新节点号，两个都收，否则校验与保存都收不到应答。
-    sdo_.accept_reply_from(node_, new_node);
     if (!(r = write(0x2615, 0, 2, new_node, deadline))) return r;
     if (!(r = verify_value(0x2615, 0, 2, new_node, deadline))) return fail(r, deadline);
     if (!(r = write(0x2614, 0, 2, 1, deadline))) return r;
-    // 保存要写 Flash，读回 2 才算完成；单次读只有 120 ms 预算，做 Flash 期间可能来不及应答，
-    // 所以按 deadline 轮询，只有到最后仍没读到 2 才判失败。
-    Result last = error(Error::timeout, "node save did not report completion");
-    while (Clock::now() < deadline) {
+    for (unsigned i = 0; i < 5 && Clock::now() < deadline; ++i) {
         uint32_t saved = 0;
-        Result read = sdo_.read(0x2614, 0, 2, saved, bounded(deadline));
-        if (read && saved == 2) return {Error::none, 0, "node staged and saved; power-cycle/readback pending"};
-        if (!read) last = read;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        r = sdo_.read(0x2614, 0, 2, saved, bounded(deadline));
+        if (!r) return fail(r, deadline);
+        if (saved == 2) return {Error::none, 0, "node staged and saved; power-cycle/readback pending"};
     }
-    return fail(last, deadline);
+    return fail(error(Error::timeout, "node save did not report completion"), deadline);
 }
 Result Motor::stage_bitrate(uint32_t bitrate, Deadline deadline) {
     uint32_t code = 0;

@@ -137,7 +137,8 @@ public:
     // One frame only, never automatically retries; return codes distinguish timeout and abort.
     Result write(uint16_t index, uint8_t subindex, uint8_t width, uint32_t value, Deadline deadline);
     Result write_pair(SdoClient& other, uint16_t index, uint8_t width,
-                      uint32_t value, uint32_t other_value, Deadline deadline);
+                      uint32_t value, uint32_t other_value, Deadline deadline,
+                      const std::function<Result(Deadline)>& verify_velocity_start = {});
     void set_service(std::function<Result(Deadline)> service) { service_ = std::move(service); }
     void set_hard_deadline(Deadline deadline) { hard_deadline_ = deadline; }
     void accept_reply_from(uint8_t alternate) { reply_node_alt_ = alternate; }
@@ -145,6 +146,8 @@ public:
     Clock::time_point last_sample_at() const { return sample_at_; }
     Clock::time_point last_transmitted_at() const { return transmitted_at_; }
 private:
+    friend class Motor;
+    void enter_stop_only() { stop_only_ = true; poisoned_ = false; }
     enum class ExchangePhase { normal, prepare_only, already_sent };
     Result exchange(const Frame& request, uint16_t index, uint8_t subindex,
                     uint8_t width, uint32_t* value, Deadline deadline,
@@ -152,11 +155,12 @@ private:
     Transport& transport_;
     uint8_t node_;
     bool poisoned_ = false;
+    bool stop_only_ = false, observe_start_abort_ = false;
     uint8_t reply_node_alt_ = 0;
     Deadline hard_deadline_ = Deadline::max();
     std::function<Result(Deadline)> service_;
     bool read_retried_ = false;
-    Clock::time_point sample_at_{}, transmitted_at_{};
+    Clock::time_point sample_at_{}, transmitted_at_{}, last_reply_at_{};
 };
 
 // One producer (0x77F) per physical CAN bus, shared by both Motor objects.

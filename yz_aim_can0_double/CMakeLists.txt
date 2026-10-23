@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(yz_aim_can0 VERSION 1.1.0 LANGUAGES CXX)
+project(yz_aim_can0 VERSION 1.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +17,7 @@ find_package(Threads REQUIRED)
 add_executable(yz_aim_can0
     src/yz_aim_can0.cpp
     src/yz_aim.cpp
+    src/frame_trace.cpp
     src/motion_log.cpp
     src/socketcan_transport.cpp
     src/can_link_query.cpp

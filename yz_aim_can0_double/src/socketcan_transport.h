@@ -8,11 +8,12 @@
 #include <vector>
 
 namespace yz_aim {
+class FrameTrace;
 
 // 直接用内核 CAN 控制器收发经典 11 位帧；打开时只做只读自检，不发任何帧。
 class SocketCanTransport final : public Transport {
 public:
-    SocketCanTransport(std::string interface_name, uint8_t node);
+    SocketCanTransport(std::string interface_name, uint8_t node, FrameTrace* trace = nullptr);
     ~SocketCanTransport() override;
 
     SocketCanTransport(const SocketCanTransport&) = delete;
@@ -36,6 +37,8 @@ public:
 private:
     void mark_fatal(const char* operation);
 
+    FrameTrace* trace_ = nullptr;
+    uint32_t rx_dropped_ = 0;
     std::string interface_;
     uint8_t node_ = 1;
     int descriptor_ = -1;

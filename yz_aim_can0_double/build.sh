@@ -38,7 +38,7 @@ case "$1" in
         echo "[*] 编译器：$CXX（仅内存驱动器，不打开CAN接口）"
         $CXX -std=c++17 -O1 -Wall -Wextra -Wpedantic -Wno-unused-parameter -Iinclude -Isrc \
             -o test/yz_aim_runtime_test test/yz_aim_runtime_test.cpp src/yz_aim.cpp \
-            src/motion_log.cpp src/socketcan_transport.cpp src/can_link_query.cpp -pthread
+            src/motion_log.cpp src/frame_trace.cpp src/socketcan_transport.cpp src/can_link_query.cpp -pthread
         exec ./test/yz_aim_runtime_test
         ;;
     *)
@@ -54,6 +54,7 @@ $CXX $CXXFLAGS -o "$OUT/yz_aim_can0" \
     src/yz_aim_can0.cpp \
     src/yz_aim.cpp \
     src/motion_log.cpp \
+    src/frame_trace.cpp \
     src/socketcan_transport.cpp \
     src/can_link_query.cpp \
     -pthread

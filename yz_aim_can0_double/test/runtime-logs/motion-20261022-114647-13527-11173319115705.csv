@@ -1,0 +1,13 @@
+# version=1.2.2-equal-speed build=Oct 22 2026 11:46:28 command=retract nominal_rpm=-30 requested_ms=650 zero_a=0 zero_b=0 node_a=1 node_b=2 sign_a=-1 hard_limit_output_deg=0.5 max_trim_rpm=5 mode=position_sync position_guard_active=1
+elapsed_ms,event,node_a,node_b,target_a_rpm,target_b_rpm,actual_a_rpm,actual_b_rpm,raw_a,raw_b,aligned_a,aligned_b,travel_a,travel_b,error_pulses,error_output_deg,sample_skew_ms,age_a_ms,age_b_ms,age_speed_a_ms,age_speed_b_ms,estimated_accel_a,estimated_accel_b,quality,status_a,status_b,alarm_a,alarm_b
+30.638,startup_sample,1,2,30,-30,29.900,-29.800,-10302,10092,-10128,10092,10128,10092,-36,-0.008,10.592,10.603,0.011,13.744,3.173,182.392,-215.405,ok,1079,1079,0,0
+128.777,startup_sample,1,2,30,-30,29.900,-29.800,-8698,8493,-8524,8493,8524,8493,-31,-0.007,10.631,10.642,0.011,13.847,3.151,0.000,0.000,ok,1079,1079,0,0
+228.821,startup_sample,1,2,30,-30,29.900,-29.800,-7062,6863,-6888,6863,6888,6863,-25,-0.005,10.629,10.638,0.008,13.838,3.150,0.000,0.000,ok,1079,1079,0,0
+328.818,sample,1,2,30,-30,29.900,-29.800,-5427,5234,-5253,5234,5253,5234,-19,-0.004,10.626,10.633,0.007,13.833,3.147,0.000,0.000,ok,1079,1079,0,0
+428.690,sample,1,2,30,-30,29.900,-29.800,-3794,3607,-3620,3607,3620,3607,-13,-0.003,10.629,10.636,0.007,13.836,3.150,0.000,0.000,ok,1079,1079,0,0
+528.762,sample,1,2,30,-30,29.900,-29.800,-2157,1977,-1984,1977,1984,1977,-7,-0.002,10.573,10.580,0.008,13.780,3.149,0.000,0.000,ok,1079,1079,0,0
+628.820,sample,1,2,30,-30,29.900,-29.800,-522,347,-348,347,348,347,-1,-0.000,10.628,10.636,0.009,13.837,3.151,0.000,0.000,ok,1079,1079,0,0
+764.559,final_position,1,2,30,-30,0.000,0.000,0,0,0,0,0,0,0,0.000,35.948,51.896,15.948,48.695,12.747,0.000,0.000,ok,1079,1079,0,0
+764.670,stopped,1,2,30,-30,0.000,0.000,0,0,0,0,0,0,0,0.000,35.948,52.007,16.059,48.806,12.858,0.000,0.000,ok,1079,1079,0,0
+# requested_ms=650 trigger_a_ms=3 trigger_b_ms=3 stop_request_a_ms=650 stop_request_b_ms=650 confirmed_at_ms=692 max_valid_error_deg=0.00775506
+# end_reason=requested duration elapsed

@@ -1,0 +1,12 @@
+# version=1.2.3-start-confirm build=Oct 22 2026 14:25:48 command=retract nominal_rpm=-30 requested_ms=650 zero_a=0 zero_b=0 node_a=1 node_b=2 sign_a=-1 hard_limit_output_deg=0.5 max_trim_rpm=5 mode=position_sync position_guard_active=1
+elapsed_ms,event,node_a,node_b,target_a_rpm,target_b_rpm,actual_a_rpm,actual_b_rpm,raw_a,raw_b,aligned_a,aligned_b,travel_a,travel_b,error_pulses,error_output_deg,sample_skew_ms,age_a_ms,age_b_ms,age_speed_a_ms,age_speed_b_ms,estimated_accel_a,estimated_accel_b,quality,status_a,status_b,alarm_a,alarm_b
+103.003,startup_sample,1,2,30,-30,29.900,-29.800,-9515,8915,-8947,8915,8947,8915,-32,-0.007,34.698,34.710,0.013,45.915,11.216,52.831,-62.564,ok,1079,1079,0,0
+192.877,startup_sample,1,2,30,-30,29.900,-29.800,-8046,7451,-7479,7451,7479,7451,-28,-0.006,34.695,34.705,0.009,45.908,11.215,0.000,0.000,ok,1079,1079,0,0
+292.877,sample,1,2,30,-30,29.900,-29.800,-6410,5822,-5843,5822,5843,5822,-21,-0.005,34.697,34.705,0.008,45.913,11.213,0.000,0.000,ok,1079,1079,0,0
+393.151,sample,1,2,30,-30,29.900,-29.800,-4775,4188,-4204,4188,4204,4188,-16,-0.003,34.966,34.974,0.009,46.180,11.213,0.000,0.000,ok,1079,1079,0,0
+492.893,sample,1,2,30,-30,29.900,-29.800,-3140,2563,-2573,2563,2573,2563,-10,-0.002,34.694,34.703,0.008,45.909,11.211,0.000,0.000,ok,1079,1079,0,0
+592.880,sample,1,2,30,-30,29.900,-29.800,-1505,934,-938,934,938,934,-4,-0.001,34.698,34.706,0.008,45.909,11.213,0.000,0.000,ok,1079,1079,0,0
+1046.640,final_position,1,2,30,-30,0.000,0.000,-1,1,-1,1,1,1,0,0.000,126.269,182.297,56.028,169.050,44.826,0.000,0.000,ok,1079,1079,0,0
+1046.757,stopped,1,2,30,-30,0.000,0.000,-1,1,-1,1,1,1,0,0.000,126.269,182.414,56.145,169.167,44.943,0.000,0.000,ok,1079,1079,0,0
+# requested_ms=650 trigger_a_ms=11 trigger_b_ms=11 stop_request_a_ms=650 stop_request_b_ms=650 confirmed_at_ms=795 max_valid_error_deg=0.00689338
+# end_reason=requested duration elapsed

@@ -76,6 +76,7 @@ public:
                 case 0x260e: value = state.alarm; break;
                 case 0x2601: value = state.output; break;
                 case 0x6064: value = static_cast<uint32_t>(state.position); width = 4; break;
+                case 0x6060: value = state.registers[0x6060]; width = 1; break;
                 case 0x606c: value = static_cast<uint16_t>(state.speed); break;
                 case 0x6078: value = 2000; break;
                 case 0x6079: value = 654; break;

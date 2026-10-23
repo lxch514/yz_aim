@@ -1,0 +1,30 @@
+{
+  "started_at": "2026-10-22T10:37:03",
+  "pid": 10388,
+  "project": "yz_aim_can0",
+  "node": 2,
+  "directory": "/root/yz_aim_can0/logs/parallel-30min-20261022-103703",
+  "move_ms": 5000,
+  "minutes": 30,
+  "phase": "completed",
+  "test_pid": 10390,
+  "command": [
+    "python3",
+    "-B",
+    "/root/yz_aim_can0/single_cycle_test.py",
+    "--node",
+    "2",
+    "--rpm",
+    "300",
+    "--move-ms",
+    "5000",
+    "--minutes",
+    "30",
+    "--sequence",
+    "forward-reverse",
+    "--log-dir",
+    "/root/yz_aim_can0/logs/parallel-30min-20261022-103703"
+  ],
+  "returncode": 0,
+  "ended_at": "2026-10-22T11:07:06"
+}

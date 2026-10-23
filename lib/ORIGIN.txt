@@ -1,0 +1,4 @@
+Source: http://www.liuyeshu.cn/?page_id=2584
+Archive: http://www.liuyeshu.cn/wp-content/uploads/lys/liblyscan-Linux/liblyscan.aarch64-linux-gnu.7.4-2019.02.20260529.tar.gz
+Library SHA256: ac9128608479af6a50fa26c85a1f7e8cec79e8e88a53cc8318a070e06bceb071
+Only the vendor AArch64 library is installed locally in this project. System libusb is used.
