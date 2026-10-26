@@ -1,0 +1,42 @@
+{
+  "installed_at": "2026-10-26 09:12:58",
+  "installed_sha256": {
+    "RS00/README.md": "92205b9247e22e2220b45623c974b59b17f309f005f913d3d512ea6139a6a8c0",
+    "RS00/tools/fixtures/heartbeat_loss_1.json": "77148f24036a414c5e467b930ec65d76e4a4c11691f280db5b509fe5e4844ebd",
+    "RS00-X6PLUS/tools/test_heartbeat_probe.py": "879ab4983829878d25c410fd955ff15fb7285dbfa8cadf8986bfafc115e4abc1",
+    "RS00-X6PLUS/x6test.py": "29f648f8ab0b7a5ed202e1b403450699f4ead0306f651e2a64450eb202b26d97",
+    "RS00/tools/test_run_logic.py": "532ec2fefe3b13883af128875764c8c6b2446537cdac4c5b844f24c4d6dc66d1",
+    "RS00-X6PLUS/README.md": "92402b61a18c4f95361ef8cf2cdc14f6c461edf185c2da09b64258f41788895d",
+    "RS00/rs00_test.py": "ae38f681c178e7af8a72253ca355eea7ffd44cf801790d87cb9e9887bf574454",
+    "RS00-X6PLUS/tools/test_loss_run_logic.py": "d27b661396a48a0543da5e799c6c01a061c08a451f721f4dc21eacf551365473",
+    "RS00/tools/test_heartbeat_probe.py": "a8559270d718098d23f830ba68eb9ad5d3947e210ca82cca1bf6cddff5596861",
+    "RS00-X6PLUS/tools/fixtures/heartbeat_loss_1.json": "77148f24036a414c5e467b930ec65d76e4a4c11691f280db5b509fe5e4844ebd"
+  },
+  "offline_tests": {
+    "RS00/selftest_rs00.py": "Ran 8 tests in 0.043s",
+    "RS00/test_heartbeat_probe.py": "Ran 12 tests in 0.017s",
+    "RS00/test_run_logic.py": "Ran 7 tests in 0.173s",
+    "RS00-X6PLUS/regression_v2.py": "Ran 11 tests in 0.045s",
+    "RS00-X6PLUS/test_heartbeat_probe.py": "Ran 12 tests in 0.016s",
+    "RS00-X6PLUS/test_loss_run_logic.py": "Ran 7 tests in 0.175s"
+  },
+  "legacy_x6_selftest": "passed",
+  "real_can_or_motion_test": false,
+  "protected_sha256": {
+    "RS00": {
+      "run_test.sh": "12a90163f3f885f9de8336486e8f7f899ee38bc8f1a9ca6cb7dcb86aa750571b",
+      "can_diagnostics.py": "5d213a698cd8fba83ff489c3207ce880410670363c8e76040c585bc4cb5c9b4b"
+    },
+    "RS00-X6PLUS": {
+      "run_test.sh": "39a1914028c2074a7114fc125bbec1a612ef787d90bb99a22660779885960a4c",
+      "can_diagnostics.py": "7e3fc2a771b3420917c8e3b2b93fab371d62f36bff48e41d12223c98a609043e"
+    }
+  },
+  "historical_log_sha256_unchanged": {
+    "/root/RS00-X6PLUS/logs/rs00-x6-30分钟-20261026-085313-622949/test.log": "b29b2fb7782649a39a8ffe9f37abd115a345a857ffd32fd9bad1008595ff03cf",
+    "/root/RS00-X6PLUS/logs/rs00-x6-30分钟-20261026-085313-622949/RS00-X6PLUS_通信统计_20261026-085313-622949_30分钟.md": "b377ced44da642fdb34b5745adebcbac3a71f520c3df0dd31c1ec14add296151",
+    "/root/RS00-X6PLUS/logs/rs00-x6-30分钟-20261024-145002-909353/test.log": "f835feba56014adc1083dd540377b3433854f21a7772283959b6ec89214c1d70",
+    "/root/RS00-X6PLUS/logs/rs00-x6-30分钟-20261024-145002-909353/RS00-X6PLUS_通信统计_20261024-145002-909353_30分钟.md": "54da3ce4f72632266dddc3f7dab4ed5507b3e474f138071825e72f1694adff84"
+  },
+  "semantics": "one position+velocity read group per confirmed missing heartbeat frame; no empty-window timer reads"
+}

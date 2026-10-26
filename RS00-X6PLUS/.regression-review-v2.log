@@ -1,0 +1,24 @@
+test_bounded_queue_pressure_and_permanent_error (__main__.Regression) ... ok
+test_check_only_never_enables_or_sends_fan_controls (__main__.Regression) ... [14:25:30] CAN 接口 can0：None，类型 CAN 2.0 1Mbps
+[14:25:30] 控制器状态 ERROR-ACTIVE，采样点 0.828
+[14:25:30] 计划：位置模式（PP）循环 正转3000ms → 保持1000ms → 反转3000ms，速度 1.0rad/s；轮询70ms、读50ms、写100ms；时长 30 分钟。
+[14:25:30] 风机：只接收遥测，本次不发送任何风机控制帧。
+[14:25:30] 电机 CAN ID 127 应答正常，当前角度 1.250 rad。
+[14:25:30] 母线电压 1.2V，故障码 0x00000000。
+[14:25:30] 只读检查完成，未使能、未运动。
+[14:25:30] 中文总结：/tmp/tmpq68k9brv/logs/rs00-x6-只读检查-20261024-142530-192359/RS00-X6PLUS_通信统计_20261024-142530-192359_只读检查.md
+[14:25:30] 本次测试结束：checked
+ok
+test_duplicates_payload_and_sequence (__main__.Regression) ... ok
+test_kernel_heartbeat_gap_separate_from_processing (__main__.Regression) ... ok
+test_motor_rejects_unrelated_and_short_frames (__main__.Regression) ... ok
+test_real_diagnostic_events_from_repeated_telemetry (__main__.Regression) ... ok
+test_rx_timestamp_and_socket_drops (__main__.Regression) ... ok
+test_send_failures_are_not_response_timeouts (__main__.Regression) ... ok
+test_separate_transfer_ids_and_wrap (__main__.Regression) ... ok
+test_stale_read_cannot_ack_new_request (__main__.Regression) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.036s
+
+OK

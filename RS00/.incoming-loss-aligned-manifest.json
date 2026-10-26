@@ -1,0 +1,12 @@
+{
+  "RS00/README.md": "92205b9247e22e2220b45623c974b59b17f309f005f913d3d512ea6139a6a8c0",
+  "RS00/tools/fixtures/heartbeat_loss_1.json": "77148f24036a414c5e467b930ec65d76e4a4c11691f280db5b509fe5e4844ebd",
+  "RS00-X6PLUS/tools/test_heartbeat_probe.py": "879ab4983829878d25c410fd955ff15fb7285dbfa8cadf8986bfafc115e4abc1",
+  "RS00-X6PLUS/x6test.py": "29f648f8ab0b7a5ed202e1b403450699f4ead0306f651e2a64450eb202b26d97",
+  "RS00/tools/test_run_logic.py": "532ec2fefe3b13883af128875764c8c6b2446537cdac4c5b844f24c4d6dc66d1",
+  "RS00-X6PLUS/README.md": "92402b61a18c4f95361ef8cf2cdc14f6c461edf185c2da09b64258f41788895d",
+  "RS00/rs00_test.py": "ae38f681c178e7af8a72253ca355eea7ffd44cf801790d87cb9e9887bf574454",
+  "RS00-X6PLUS/tools/test_loss_run_logic.py": "d27b661396a48a0543da5e799c6c01a061c08a451f721f4dc21eacf551365473",
+  "RS00/tools/test_heartbeat_probe.py": "a8559270d718098d23f830ba68eb9ad5d3947e210ca82cca1bf6cddff5596861",
+  "RS00-X6PLUS/tools/fixtures/heartbeat_loss_1.json": "77148f24036a414c5e467b930ec65d76e4a4c11691f280db5b509fe5e4844ebd"
+}

@@ -1,0 +1,16 @@
+test_at_50ms_not_motor_70ms_or_1point5_heartbeat_period (__main__.PollWindowPositionVelocity) ... ok
+test_boundary_heartbeat_belongs_to_next_window (__main__.PollWindowPositionVelocity) ... ok
+test_consecutive_empty_windows_each_get_a_pair (__main__.PollWindowPositionVelocity) ... ok
+test_drain_dispatches_at_50ms_without_waiting_for_motor_idle_window (__main__.PollWindowPositionVelocity) ... ok
+test_each_read_has_its_own_status_and_recovery_time (__main__.PollWindowPositionVelocity) ... ok
+test_existing_request_is_never_overwritten (__main__.PollWindowPositionVelocity) ... ok
+test_heartbeat_in_window_suppresses_probe (__main__.PollWindowPositionVelocity) ... ok
+test_position_timeout_does_not_skip_velocity (__main__.PollWindowPositionVelocity) ... ok
+test_send_failure_and_invalid_float_are_preserved (__main__.PollWindowPositionVelocity) ... ok
+test_summary_and_shutdown_queue (__main__.PollWindowPositionVelocity) ... ok
+test_two_reads_start_immediately_at_window_end (__main__.PollWindowPositionVelocity) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.014s
+
+OK

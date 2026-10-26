@@ -1,0 +1,20 @@
+{
+  "original_files_changed": [
+    "run_test.sh",
+    "README.md",
+    "rs00_test.py"
+  ],
+  "old_logs_and_tools_unchanged": true,
+  "x6_files_unchanged": true,
+  "actual_motor_test_run": false,
+  "offline_tests_passed": 24,
+  "deployed_sha256": {
+    "README.md": "ed2d6cdb9c0cddbfc4d01d85aa572a852092678dc94a99cf1eaf539ae03e647e",
+    "can_diagnostics.py": "5d213a698cd8fba83ff489c3207ce880410670363c8e76040c585bc4cb5c9b4b",
+    "rs00_test.py": "29f2309a7ee0bed8c13275f779beed7c34db135beb073cc6e57af3ff721d4983",
+    "run_test.sh": "12a90163f3f885f9de8336486e8f7f899ee38bc8f1a9ca6cb7dcb86aa750571b",
+    "tools/selftest_rs00.py": "5e73ace6de0115ed5b8e10ae470b1a22a6a646c31a2429640405932db45b998e",
+    "tools/test_heartbeat_probe.py": "f05484dbe397115aa1c8d91055dddc7ab71823acecfc0145c0b3379214fd681e",
+    "tools/test_run_logic.py": "f7bd3d6e504881432ac4124d7982046191091e83a7e8e17ab63995e5b3c86f6a"
+  }
+}
