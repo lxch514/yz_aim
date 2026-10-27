@@ -1,0 +1,139 @@
+{
+  "settings": {
+    "iface": "can0",
+    "ids": [
+      1,
+      2
+    ],
+    "minutes": 30,
+    "mode": "time",
+    "speed_out_dps": 20,
+    "speed_motor_dps": 720,
+    "fwd_ms": 3000,
+    "hold_ms": 1000,
+    "rev_ms": 3000,
+    "poll_ms": 70,
+    "read_ms": 50,
+    "write_ms": 100,
+    "hb_ms": 50,
+    "delta_raw": 216000,
+    "off_rev_raw": 0,
+    "motor_lost_sec": 10,
+    "check_only": false,
+    "read_only": false,
+    "fan": {
+      "control": true,
+      "throttle": 0,
+      "throttle_pct": 0,
+      "period_ms": 20,
+      "init_zero_sec": 2,
+      "stop_zero_frames": 20,
+      "stale_sec": 3
+    }
+  },
+  "started_at": "2026-10-27T13:48:16.931",
+  "ended_at": "2026-10-27T13:50:45.731",
+  "wall_seconds": 142.02,
+  "can_before": {
+    "state": "ERROR-PASSIVE",
+    "berr": {
+      "tx": 0,
+      "rx": 0
+    },
+    "bittiming": {
+      "bitrate": 1000000,
+      "sample_point": 0.828,
+      "tq": 10,
+      "prop_seg": 40,
+      "phase_seg1": 41,
+      "phase_seg2": 17,
+      "sjw": 1
+    },
+    "xstats": {
+      "restarts": 0,
+      "bus_error": 0,
+      "arbitration_lost": 0,
+      "error_warning": 116,
+      "error_passive": 52961,
+      "bus_off": 0
+    },
+    "flags": [
+      "NOARP",
+      "UP",
+      "LOWER_UP",
+      "ECHO"
+    ],
+    "qdisc": "pfifo_fast",
+    "txqlen": 10,
+    "operstate": "UP",
+    "net": {
+      "rx": {
+        "bytes": 10216588,
+        "packets": 1277166,
+        "errors": 0,
+        "dropped": 0,
+        "over_errors": 0,
+        "multicast": 0
+      },
+      "tx": {
+        "bytes": 2947712,
+        "packets": 368464,
+        "errors": 0,
+        "dropped": 0,
+        "carrier_errors": 0,
+        "collisions": 0
+      }
+    }
+  },
+  "can_after": {
+    "state": "ERROR-PASSIVE",
+    "berr": {
+      "tx": 0,
+      "rx": 0
+    },
+    "bittiming": {
+      "bitrate": 1000000,
+      "sample_point": 0.828,
+      "tq": 10,
+      "prop_seg": 40,
+      "phase_seg1": 41,
+      "phase_seg2": 17,
+      "sjw": 1
+    },
+    "xstats": {
+      "restarts": 0,
+      "bus_error": 0,
+      "arbitration_lost": 0,
+      "error_warning": 170,
+      "error_passive": 53262,
+      "bus_off": 0
+    },
+    "flags": [
+      "NOARP",
+      "UP",
+      "LOWER_UP",
+      "ECHO"
+    ],
+    "qdisc": "pfifo_fast",
+    "txqlen": 10,
+    "operstate": "UP",
+    "net": {
+      "rx": {
+        "bytes": 14800119,
+        "packets": 1851473,
+        "errors": 0,
+        "dropped": 0,
+        "over_errors": 0,
+        "multicast": 0
+      },
+      "tx": {
+        "bytes": 3098680,
+        "packets": 387338,
+        "errors": 0,
+        "dropped": 0,
+        "carrier_errors": 0,
+        "collisions": 0
+      }
+    }
+  }
+}
